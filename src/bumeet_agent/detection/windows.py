@@ -1,0 +1,1 @@
+"""Windows detector placeholder."""
