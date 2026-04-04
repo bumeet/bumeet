@@ -23,3 +23,31 @@ Agente local multiplataforma en Python para detectar uso de camara o microfono y
 ## Estado
 
 Repositorio inicializado con estructura base. Los modulos se iran implementando de forma iterativa.
+
+## Simulacion sin hardware
+
+Puedes ejecutar un flujo completo sin dispositivo BLE externo usando el modo simulacion:
+
+```bash
+PYTHONPATH=src python -m bumeet_agent.app --simulate --scenario default --delay-scale 0
+```
+
+Tambien puedes ver la simulacion en una interfaz de escritorio ligera:
+
+```bash
+PYTHONPATH=src python -m bumeet_agent.app --simulate-ui
+```
+
+Escenarios disponibles:
+
+- `default`: llamada entra y termina
+- `bounce`: varios cambios rapido busy/free
+- `camera-only`: uso de camara sin microfono
+
+Esto valida el flujo detector -> state machine -> BLE client fake -> eventos y logs sin depender de hardware real.
+
+## Handoff para Claude Code
+
+Hay una guia de traspaso lista para continuar el trabajo en:
+
+- `docs/claude-code-handoff.md`

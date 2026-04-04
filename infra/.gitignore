@@ -1,0 +1,27 @@
+# Terraform state (never commit state files)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform plan files (may contain secrets)
+tfplan
+*.tfplan
+plan_output.txt
+
+# Terraform working directories
+.terraform/
+.terraform.lock.hcl
+
+# Variable files with secrets
+*.auto.tfvars
+!terraform.tfvars
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

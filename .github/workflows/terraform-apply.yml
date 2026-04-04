@@ -1,0 +1,67 @@
+name: "Terraform Apply"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION:          "1.8.5"
+  ARM_CLIENT_ID:       ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET:   ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID:       ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  apply-dev:
+    name: "Apply — dev"
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: |
+          terraform apply \
+            -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
+            -auto-approve
+
+  apply-prod:
+    name: "Apply — prod"
+    runs-on: ubuntu-latest
+    environment: prod        # requires manual approval in GitHub Environments settings
+    needs: apply-dev         # prod only runs after dev succeeds
+    defaults:
+      run:
+        working-directory: infra/envs/prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: |
+          terraform apply \
+            -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_PROD }}" \
+            -auto-approve
