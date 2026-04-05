@@ -15,7 +15,7 @@ WORKDIR /app
 COPY apps/api ./apps/api
 WORKDIR /app/apps/api
 RUN npx prisma generate
-RUN npx nest build && ls -la && ls -la dist/ || (echo "=== BUILD FAILED, listing /app ===" && ls -la /app && ls -la /app/apps/api && exit 1)
+RUN npx nest build && ls dist/main.js
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM base AS runner
