@@ -36,4 +36,4 @@ WORKDIR /app/apps/api
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "node ../../node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma && node dist/main"]
+CMD ["sh", "-c", "../../node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma && node dist/main"]
