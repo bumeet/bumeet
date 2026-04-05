@@ -2,21 +2,37 @@
 FROM node:20-alpine AS base
 RUN apk add --no-cache openssl && npm install -g pnpm@9
 
-# ── install + build ────────────────────────────────────────────────────────────
-FROM base AS builder
+# ── install ────────────────────────────────────────────────────────────────────
+FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmfile.cjs ./
 COPY apps/api/package.json ./apps/api/package.json
 RUN pnpm install --no-frozen-lockfile --filter api...
+
+# ── build ─────────────────────────────────────────────────────────────────────
+FROM deps AS builder
+WORKDIR /app
 COPY apps/api ./apps/api
-RUN pnpm --filter api exec prisma generate
-RUN pnpm --filter api run build
+WORKDIR /app/apps/api
+RUN npx prisma generate
+RUN npx nest build
+# Verify dist was created
+RUN ls dist/main.js
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM base AS runner
 WORKDIR /app
 
-COPY --from=builder /app .
+# Copy installed packages
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+
+# Copy built output and runtime files
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY apps/api/package.json ./apps/api/package.json
+COPY package.json ./package.json
+COPY pnpm-workspace.yaml ./pnpm-workspace.yaml
 
 ENV NODE_ENV=production
 ENV PORT=8080
