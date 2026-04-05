@@ -5,7 +5,8 @@ RUN npm install -g pnpm@9
 # ── deps ──────────────────────────────────────────────────────────────────────
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmfile.cjs* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY .pnpmfile.cjs ./
 COPY apps/api/package.json ./apps/api/package.json
 RUN pnpm install --frozen-lockfile --filter api...
 
