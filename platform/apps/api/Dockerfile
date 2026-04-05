@@ -36,6 +36,9 @@ ENV NODE_ENV=production
 ENV PORT=8080
 WORKDIR /app/apps/api
 
+# Generate Prisma client for the runner platform
+RUN npx prisma generate --schema=./prisma/schema.prisma
+
 EXPOSE 8080
 
 CMD ["sh", "-c", "npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/main"]
