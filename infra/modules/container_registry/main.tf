@@ -4,8 +4,7 @@ resource "azurerm_container_registry" "this" {
   location            = var.location
   sku                 = var.sku
 
-  # Admin account disabled — use managed identity or service principal instead
-  admin_enabled = false
+  admin_enabled = true
 
   tags = var.tags
 }

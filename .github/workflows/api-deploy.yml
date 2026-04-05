@@ -13,26 +13,23 @@ on:
 env:
   ACR_REGISTRY: acrbumeetdev.azurecr.io
   IMAGE_NAME: bumeet-api
-  RESOURCE_GROUP: rg-bumeet-dev
   APP_NAME: app-bumeet-dev-api
 
 jobs:
   build-and-deploy:
     name: Build & Deploy API
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: platform
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to ACR
-        uses: docker/login-action@v3
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          registry: ${{ env.ACR_REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR via Azure CLI
+        run: az acr login --name acrbumeetdev
 
       - name: Set image tag
         id: meta
@@ -47,11 +44,6 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.tag }}
             ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
