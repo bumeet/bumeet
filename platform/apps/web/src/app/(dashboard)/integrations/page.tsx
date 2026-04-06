@@ -41,6 +41,7 @@ export default function IntegrationsPage() {
 
   const [banner, setBanner] = useState<'connected' | 'error' | null>(null);
   const [connectedProvider, setConnectedProvider] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     const connected = searchParams.get('connected');
@@ -75,12 +76,15 @@ export default function IntegrationsPage() {
   const getAccounts = (provider: string) => integrations.filter((i) => i.provider === provider);
 
   const handleConnect = async (provider: string) => {
-    if (!token) { setLoading(false); return; }
+    if (!token) { setConnectError('Not authenticated. Please sign out and sign in again.'); return; }
     setConnecting(provider);
+    setConnectError(null);
     try {
       const result = await api.post<any>(`/integrations/connect/${provider}`, {}, token);
       if (result?.redirectUrl) { window.location.href = result.redirectUrl; return; }
       setIntegrations((prev) => [...prev, result]);
+    } catch (err: any) {
+      setConnectError(err.message || 'Failed to connect. Please try again.');
     } finally {
       setConnecting(null);
     }
@@ -116,6 +120,11 @@ export default function IntegrationsPage() {
       {banner === 'error' && (
         <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">
           <AlertCircle size={16} /> Connection failed. Please try again.
+        </div>
+      )}
+      {connectError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">
+          <AlertCircle size={16} /> {connectError}
         </div>
       )}
 
