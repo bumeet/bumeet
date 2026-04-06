@@ -19,7 +19,7 @@ export default function StatusPage() {
   const token = (session as any)?.apiToken;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     Promise.all([
       api.get<Integration[]>('/integrations', token),
       api.get<Message[]>('/messages', token),

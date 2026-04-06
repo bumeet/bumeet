@@ -50,12 +50,12 @@ export default function IntegrationsPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     api.get<Integration[]>('/integrations', token).then(setIntegrations).finally(() => setLoading(false));
   }, [token, banner]);
 
   const pollSlackPresence = useCallback(async (integrationId: string) => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     try {
       const p = await api.get<SlackPresence>(`/integrations/${integrationId}/presence`, token);
       if (p) setSlackPresence((prev) => ({ ...prev, [integrationId]: p }));
@@ -75,7 +75,7 @@ export default function IntegrationsPage() {
   const getAccounts = (provider: string) => integrations.filter((i) => i.provider === provider);
 
   const handleConnect = async (provider: string) => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     setConnecting(provider);
     try {
       const result = await api.post<any>(`/integrations/connect/${provider}`, {}, token);
@@ -94,7 +94,7 @@ export default function IntegrationsPage() {
   };
 
   const handleSync = async (integration: Integration) => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     setSyncing(integration.id);
     try {
       const updated = await api.post<Integration>(`/integrations/${integration.id}/sync`, {}, token);

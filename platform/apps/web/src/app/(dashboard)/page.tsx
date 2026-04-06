@@ -38,7 +38,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     const token = (session as any)?.apiToken;
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
 
     const start = view === 'month' ? startOfMonth(currentDate) : weekStart;
     const end = view === 'month' ? endOfMonth(currentDate) : addDays(weekStart, 6);

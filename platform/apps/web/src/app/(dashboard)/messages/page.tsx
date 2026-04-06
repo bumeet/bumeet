@@ -40,7 +40,7 @@ export default function MessagesPage() {
   const token = (session as any)?.apiToken;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     api.get<Message[]>('/messages', token).then(setMessages).finally(() => setLoading(false));
   }, [token]);
 
