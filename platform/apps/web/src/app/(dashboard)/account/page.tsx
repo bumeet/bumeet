@@ -26,7 +26,7 @@ export default function AccountPage() {
   const [pwSaved, setPwSaved] = useState(false);
 
   useEffect(() => {
-    if (!token) { setLoading(false); return; }
+    if (!token) return;
     api.get<UserProfile>('/users/me', token).then(setProfile);
     api.get<Session[]>('/users/me/sessions', token).then(setSessions);
   }, [token]);
@@ -45,7 +45,7 @@ export default function AccountPage() {
   };
 
   const handleChangePassword = async () => {
-    if (!token) { setLoading(false); return; }
+    if (!token) return;
     setPwError('');
     if (passwords.next !== passwords.confirm) return setPwError('Passwords do not match');
     if (passwords.next.length < 8) return setPwError('Password must be at least 8 characters');
@@ -60,7 +60,7 @@ export default function AccountPage() {
   };
 
   const handleRevokeSession = async (id: string) => {
-    if (!token) { setLoading(false); return; }
+    if (!token) return;
     await api.delete(`/users/me/sessions/${id}`, token);
     setSessions((prev) => prev.filter((s) => s.id !== id));
   };
