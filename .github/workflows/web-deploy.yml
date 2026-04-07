@@ -37,12 +37,20 @@ jobs:
           NEXT_PUBLIC_API_URL: https://app-bumeet-dev-api.azurewebsites.net/api/v1
           NEXTAUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          AUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          AUTH_GOOGLE_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          AUTH_GOOGLE_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
           MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
+          AUTH_MICROSOFT_ENTRA_ID_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
+          AUTH_MICROSOFT_ENTRA_ID_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
           SLACK_CLIENT_ID: ${{ secrets.SLACK_CLIENT_ID }}
           SLACK_CLIENT_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}
+          AUTH_SLACK_ID: ${{ secrets.SLACK_CLIENT_ID }}
+          AUTH_SLACK_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}
 
   close-pr:
     name: Close PR environment
