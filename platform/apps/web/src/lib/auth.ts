@@ -48,20 +48,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET!,
     }),
     MicrosoftEntraID({
-      clientId: process.env.MICROSOFT_CLIENT_ID!,
-      clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
+      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID || process.env.MICROSOFT_CLIENT_ID!,
+      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET || process.env.MICROSOFT_CLIENT_SECRET!,
       issuer: 'https://login.microsoftonline.com/common/v2.0',
       authorization: {
         params: { scope: 'openid profile email' },
       },
     } as Parameters<typeof MicrosoftEntraID>[0]),
     Slack({
-      clientId: process.env.SLACK_CLIENT_ID!,
-      clientSecret: process.env.SLACK_CLIENT_SECRET!,
+      clientId: process.env.AUTH_SLACK_ID || process.env.SLACK_CLIENT_ID!,
+      clientSecret: process.env.AUTH_SLACK_SECRET || process.env.SLACK_CLIENT_SECRET!,
     }),
   ],
   callbacks: {
