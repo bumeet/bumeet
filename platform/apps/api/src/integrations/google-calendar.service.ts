@@ -25,7 +25,7 @@ export class GoogleCalendarService {
     return new google.auth.OAuth2(
       this.config.get('GOOGLE_CLIENT_ID'),
       this.config.get('GOOGLE_CLIENT_SECRET'),
-      `${this.config.get('FRONTEND_URL') === 'http://localhost:3000' ? 'http://localhost:3001' : this.config.get('FRONTEND_URL')}/api/v1/auth/google/callback`,
+      `${this.config.get('API_URL') || 'http://localhost:3001'}/api/v1/auth/google/callback`,
     );
   }
 

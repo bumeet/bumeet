@@ -27,10 +27,7 @@ export class SlackService {
   ) {}
 
   private get redirectUri() {
-    return (
-      this.config.get('SLACK_REDIRECT_URI') ||
-      'http://localhost:3001/api/v1/auth/slack/callback'
-    );
+    return `${this.config.get('API_URL') || 'http://localhost:3001'}/api/v1/auth/slack/callback`;
   }
 
   getAuthUrl(userId: string): string {

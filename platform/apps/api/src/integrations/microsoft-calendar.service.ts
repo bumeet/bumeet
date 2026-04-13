@@ -24,7 +24,7 @@ export class MicrosoftCalendarService {
   ) {}
 
   private get redirectUri() {
-    return 'http://localhost:3001/api/v1/auth/microsoft/callback';
+    return `${this.config.get('API_URL') || 'http://localhost:3001'}/api/v1/auth/microsoft/callback`;
   }
 
   getAuthUrl(userId: string): string {
