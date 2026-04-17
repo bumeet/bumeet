@@ -179,7 +179,7 @@ export class SlackService {
     return data;
   }
 
-  async getPresence(integrationId: string): Promise<{ inCall: boolean; status: string; emoji: string }> {
+  async getPresence(integrationId: string): Promise<{ inCall: boolean; presence: string; status: string; emoji: string }> {
     const integration = await this.prisma.integrationAccount.findUnique({
       where: { id: integrationId },
     });
@@ -187,19 +187,24 @@ export class SlackService {
 
     const accessToken = integration.accessToken!;
 
-    // Get user profile to check status (huddles set emoji :headphones: + "In a huddle")
-    const profileRes = await fetch(`${this.API_URL}/users.profile.get`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const profileData = await profileRes.json();
+    // Fetch profile (status emoji/text) and user presence (active/away) in parallel
+    const [profileData, presenceData] = await Promise.all([
+      fetch(`${this.API_URL}/users.profile.get`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).then((r) => r.json()),
+      fetch(`${this.API_URL}/users.getPresence`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).then((r) => r.json()),
+    ]);
 
     if (!profileData.ok) {
       this.logger.warn(`Slack profile fetch failed: ${profileData.error}`);
-      return { inCall: false, status: '', emoji: '' };
+      return { inCall: false, presence: 'unknown', status: '', emoji: '' };
     }
 
     const statusEmoji: string = profileData.profile?.status_emoji ?? '';
     const statusText: string = profileData.profile?.status_text ?? '';
+    const presence: string = presenceData.ok ? (presenceData.presence ?? 'unknown') : 'unknown';
 
     // Slack sets these during huddles and calls
     const callEmojis = [':headphones:', ':slack_call:', ':phone:', ':calling:'];
@@ -209,7 +214,7 @@ export class SlackService {
       callEmojis.includes(statusEmoji) ||
       callTexts.some((t) => statusText.toLowerCase().includes(t));
 
-    return { inCall, status: statusText, emoji: statusEmoji };
+    return { inCall, presence, status: statusText, emoji: statusEmoji };
   }
 
 }

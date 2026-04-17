@@ -17,7 +17,7 @@ type Integration = {
   label: string | null;
 };
 
-type SlackPresence = { inCall: boolean; status: string; emoji: string };
+type SlackPresence = { inCall: boolean; presence: string; status: string; emoji: string };
 
 const PROVIDERS = [
   { id: 'google', name: 'Google Calendar', description: 'Sync events from Google Calendar', emoji: '📅' },
@@ -189,18 +189,25 @@ export default function IntegrationsPage() {
                                   <CheckCircle size={10} /> Active
                                 </span>
                               )}
-                              {/* Slack live call indicator */}
+                              {/* Slack live presence + call indicator */}
                               {slack && (
-                                <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                                  slack.inCall
-                                    ? 'text-red-700 bg-red-50 animate-pulse'
-                                    : 'text-gray-500 bg-gray-100'
-                                }`}>
-                                  <Radio size={10} />
-                                  {slack.inCall
-                                    ? `In call ${slack.emoji}`
-                                    : slack.status || 'Available'}
-                                </span>
+                                <>
+                                  <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                                    slack.presence === 'active' ? 'text-green-700 bg-green-50' : 'text-gray-400 bg-gray-100'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${slack.presence === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                    {slack.presence === 'active' ? 'Active' : 'Away'}
+                                  </span>
+                                  {slack.inCall && (
+                                    <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
+                                      <Radio size={10} />
+                                      {`In call ${slack.emoji}`}
+                                    </span>
+                                  )}
+                                  {!slack.inCall && slack.status && (
+                                    <span className="text-xs text-gray-400">{slack.status}</span>
+                                  )}
+                                </>
                               )}
                             </div>
                             {integration.lastSyncAt && (
