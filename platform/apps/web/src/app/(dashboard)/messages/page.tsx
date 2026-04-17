@@ -163,7 +163,17 @@ export default function MessagesPage() {
   const token = (session as any)?.apiToken;
 
   // Last delivered message = what the display is currently showing
-  const displayMessage = messages.find((m) => m.status === 'delivered') ?? null;
+  // Falls back to a synthetic FREE message so the display never shows "empty"
+  const lastDelivered = messages.find((m) => m.status === 'delivered');
+  const displayMessage = lastDelivered ?? {
+    id: 'default-free',
+    content: 'FREE',
+    status: 'delivered',
+    sentAt: null,
+    deliveredAt: null,
+    errorMsg: null,
+    createdAt: new Date().toISOString(),
+  };
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }

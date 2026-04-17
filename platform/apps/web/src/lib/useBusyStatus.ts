@@ -109,7 +109,9 @@ export function useBusyStatus(
     const isBusy = slackBusy || calendarBusy.current;
 
     if (wasBusy.current === null) {
+      // Send initial state so the display always shows something on first load
       wasBusy.current = isBusy;
+      sendMessage(isBusy ? buildBusyMessage(slackBusy, latestCalendar.current) : 'FREE');
       return;
     }
 
