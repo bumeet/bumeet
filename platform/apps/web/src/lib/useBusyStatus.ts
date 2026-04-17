@@ -1,19 +1,36 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { api } from './api';
 
 type SlackPresenceMap = Record<string, { inCall: boolean; presence: string }>;
+
+export type CalendarStatus = {
+  busy: boolean;
+  reason: string | null;
+  source: string | null; // 'google' | 'microsoft' | null
+};
 
 /**
  * Monitors busy state across Slack (real-time) and calendar (every 30s).
  * Automatically POSTs a message to /messages when the state transitions:
  *   free → busy : "BUSY"
  *   busy → free : "FREE"
+ *
+ * Returns calendarStatus so the UI can show an indicator on Google/Microsoft cards.
  */
-export function useBusyStatus(token: string | undefined, slackPresence: SlackPresenceMap) {
+export function useBusyStatus(
+  token: string | undefined,
+  slackPresence: SlackPresenceMap,
+): CalendarStatus {
   const wasBusy = useRef<boolean | null>(null);
   const sending = useRef(false);
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus>({
+    busy: false,
+    reason: null,
+    source: null,
+  });
+  const calendarBusy = useRef(false);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -30,18 +47,15 @@ export function useBusyStatus(token: string | undefined, slackPresence: SlackPre
     [token],
   );
 
-  // Check calendar busy status every 30s
-  const calendarBusy = useRef(false);
+  // Poll calendar busy status every 30s
   useEffect(() => {
     if (!token) return;
 
     const check = async () => {
       try {
-        const res = await api.get<{ busy: boolean; reason: string | null; source: string | null }>(
-          '/integrations/busy',
-          token,
-        );
+        const res = await api.get<CalendarStatus>('/integrations/busy', token);
         calendarBusy.current = res.busy;
+        setCalendarStatus(res);
       } catch {
         // ignore
       }
@@ -59,7 +73,6 @@ export function useBusyStatus(token: string | undefined, slackPresence: SlackPre
     const slackBusy = Object.values(slackPresence).some((p) => p.inCall);
     const isBusy = slackBusy || calendarBusy.current;
 
-    // Only act on transitions
     if (wasBusy.current === null) {
       wasBusy.current = isBusy;
       return;
@@ -73,4 +86,6 @@ export function useBusyStatus(token: string | undefined, slackPresence: SlackPre
       sendMessage('FREE');
     }
   }, [slackPresence, token, sendMessage]);
+
+  return calendarStatus;
 }

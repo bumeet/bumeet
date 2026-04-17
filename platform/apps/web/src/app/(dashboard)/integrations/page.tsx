@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { useBusyStatus } from '@/lib/useBusyStatus';
+import { useBusyStatus, type CalendarStatus } from '@/lib/useBusyStatus';
 import { RefreshCw, Unlink, Link2, CheckCircle, AlertCircle, Clock, Plus, Radio } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -40,7 +40,7 @@ export default function IntegrationsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  useBusyStatus(token, slackPresence);
+  const calendarStatus = useBusyStatus(token, slackPresence);
 
   const [banner, setBanner] = useState<'connected' | 'error' | null>(null);
   const [connectedProvider, setConnectedProvider] = useState<string | null>(null);
@@ -174,6 +174,10 @@ export default function IntegrationsPage() {
                   {accounts.map((integration) => {
                     const isError = integration.status === 'error';
                     const slack = provider.id === 'slack' ? slackPresence[integration.id] : null;
+                    const inMeeting =
+                      (provider.id === 'google' || provider.id === 'microsoft') &&
+                      calendarStatus.busy &&
+                      calendarStatus.source === provider.id;
 
                     return (
                       <li key={integration.id} className="px-6 py-4">
@@ -190,6 +194,12 @@ export default function IntegrationsPage() {
                               ) : (
                                 <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
                                   <CheckCircle size={10} /> Active
+                                </span>
+                              )}
+                              {/* Calendar in-meeting indicator */}
+                              {inMeeting && (
+                                <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
+                                  <Radio size={10} /> In meeting
                                 </span>
                               )}
                               {/* Slack live presence + call indicator */}
