@@ -69,7 +69,7 @@ export default function IntegrationsPage() {
     if (!slackAccounts.length) return;
 
     slackAccounts.forEach((a) => pollSlackPresence(a.id));
-    const interval = setInterval(() => slackAccounts.forEach((a) => pollSlackPresence(a.id)), 20_000);
+    const interval = setInterval(() => slackAccounts.forEach((a) => pollSlackPresence(a.id)), 1_000);
     return () => clearInterval(interval);
   }, [integrations, pollSlackPresence]);
 
