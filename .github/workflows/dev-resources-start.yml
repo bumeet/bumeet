@@ -1,0 +1,74 @@
+name: "Dev — Start resources"
+
+# Runs Mon–Fri at 08:00 Madrid time (06:00 UTC summer / 07:00 UTC winter)
+# Does NOT run on weekends — use workflow_dispatch to start manually
+# Can be triggered manually at any time
+on:
+  schedule:
+    - cron: "0 7 * * 1-5"   # Mon–Fri 07:00 UTC  (~09:00 CEST / 08:00 CET)
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: rg-bumeet-dev
+  API_APP:        app-bumeet-dev-api
+  POSTGRES:       psql-bumeet-dev
+
+permissions:
+  contents: read
+
+jobs:
+  start:
+    name: "Start dev resources"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Start PostgreSQL Flexible Server
+        run: |
+          STATE=$(az postgres flexible-server show \
+            --name "$POSTGRES" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "state" -o tsv)
+
+          echo "PostgreSQL current state: $STATE"
+
+          if [ "$STATE" = "Stopped" ]; then
+            echo "▶️  Starting PostgreSQL: $POSTGRES"
+            az postgres flexible-server start \
+              --name "$POSTGRES" \
+              --resource-group "$RESOURCE_GROUP"
+            echo "⏳ Waiting for PostgreSQL to be Ready..."
+            az postgres flexible-server wait \
+              --name "$POSTGRES" \
+              --resource-group "$RESOURCE_GROUP" \
+              --custom "state=='Ready'" \
+              --interval 15 \
+              --timeout 300
+            echo "✅ PostgreSQL is Ready"
+          else
+            echo "ℹ️  PostgreSQL is already in state '$STATE', skipping"
+          fi
+
+      - name: Start App Service
+        run: |
+          echo "▶️  Starting App Service: $API_APP"
+          az webapp start \
+            --name "$API_APP" \
+            --resource-group "$RESOURCE_GROUP"
+          echo "✅ App Service started"
+
+      - name: Summary
+        run: |
+          echo "### ▶️ Dev resources started" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Action |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| PostgreSQL \`$POSTGRES\` | Started (waited for Ready) |" >> $GITHUB_STEP_SUMMARY
+          echo "| App Service \`$API_APP\` | Started |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "API: https://app-bumeet-dev-api.azurewebsites.net/api/v1" >> $GITHUB_STEP_SUMMARY
+          echo "Web: https://icy-hill-066964603.2.azurestaticapps.net" >> $GITHUB_STEP_SUMMARY

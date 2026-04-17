@@ -1,0 +1,67 @@
+name: "Dev — Stop resources"
+
+# Runs Mon–Fri at 20:00 Madrid time (18:00 UTC summer / 19:00 UTC winter)
+# Also runs at weekend start: Friday 19:00 UTC
+# Can be triggered manually at any time
+on:
+  schedule:
+    - cron: "0 19 * * 1-5"   # Mon–Fri 19:00 UTC  (~21:00 CEST / 20:00 CET)
+  workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: rg-bumeet-dev
+  API_APP:        app-bumeet-dev-api
+  POSTGRES:       psql-bumeet-dev
+
+permissions:
+  contents: read
+
+jobs:
+  stop:
+    name: "Stop dev resources"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Stop App Service
+        run: |
+          echo "⏹ Stopping App Service: $API_APP"
+          az webapp stop \
+            --name "$API_APP" \
+            --resource-group "$RESOURCE_GROUP"
+          echo "✅ App Service stopped"
+
+      - name: Stop PostgreSQL Flexible Server
+        run: |
+          STATE=$(az postgres flexible-server show \
+            --name "$POSTGRES" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "state" -o tsv)
+
+          echo "PostgreSQL current state: $STATE"
+
+          if [ "$STATE" = "Ready" ]; then
+            echo "⏹ Stopping PostgreSQL: $POSTGRES"
+            az postgres flexible-server stop \
+              --name "$POSTGRES" \
+              --resource-group "$RESOURCE_GROUP"
+            echo "✅ PostgreSQL stop command sent (takes ~1 min)"
+          else
+            echo "ℹ️  PostgreSQL is already in state '$STATE', skipping"
+          fi
+
+      - name: Summary
+        run: |
+          echo "### ⏹ Dev resources stopped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Action |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| App Service \`$API_APP\` | Stopped |" >> $GITHUB_STEP_SUMMARY
+          echo "| PostgreSQL \`$POSTGRES\` | Stopped |" >> $GITHUB_STEP_SUMMARY
+          echo "| Redis \`redis-bumeet-dev\` | Always on (Basic C0, cannot stop) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Run **Dev — Start resources** to bring them back up." >> $GITHUB_STEP_SUMMARY
