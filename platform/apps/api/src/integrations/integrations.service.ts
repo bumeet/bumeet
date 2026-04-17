@@ -62,6 +62,27 @@ export class IntegrationsService {
     return this.slack.getPresence(integrationId);
   }
 
+  /** Returns whether the user has an active calendar event right now. */
+  async getBusyStatus(userId: string): Promise<{ busy: boolean; reason: string | null; source: string | null }> {
+    const now = new Date();
+    const event = await this.prisma.calendarEvent.findFirst({
+      where: {
+        userId,
+        startAt: { lte: now },
+        endAt: { gt: now },
+        status: 'confirmed',
+      },
+      include: { integration: { select: { provider: true } } },
+      orderBy: { startAt: 'desc' },
+    });
+
+    if (event) {
+      return { busy: true, reason: event.title, source: event.integration.provider };
+    }
+
+    return { busy: false, reason: null, source: null };
+  }
+
   async disconnect(userId: string, integrationId: string) {
     const integration = await this.prisma.integrationAccount.findFirst({
       where: { id: integrationId, userId },

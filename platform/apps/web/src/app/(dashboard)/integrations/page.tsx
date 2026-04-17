@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useBusyStatus } from '@/lib/useBusyStatus';
 import { RefreshCw, Unlink, Link2, CheckCircle, AlertCircle, Clock, Plus, Radio } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -38,6 +39,8 @@ export default function IntegrationsPage() {
   const token = (session as any)?.apiToken;
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  useBusyStatus(token, slackPresence);
 
   const [banner, setBanner] = useState<'connected' | 'error' | null>(null);
   const [connectedProvider, setConnectedProvider] = useState<string | null>(null);
