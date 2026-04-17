@@ -1,11 +1,10 @@
 name: "Dev — Stop resources"
 
-# Runs Mon–Fri at 20:00 Madrid time (18:00 UTC summer / 19:00 UTC winter)
-# Also runs at weekend start: Friday 19:00 UTC
-# Can be triggered manually at any time
+# Safety net: runs every day at 21:00 Madrid time (19:00 UTC summer / 20:00 UTC winter)
+# Stops everything regardless — prevents accidental overnight charges
 on:
   schedule:
-    - cron: "0 19 * * 1-5"   # Mon–Fri 19:00 UTC  (~21:00 CEST / 20:00 CET)
+    - cron: "0 19 * * *"   # Every day 19:00 UTC  (~21:00 CEST / 20:00 CET)
   workflow_dispatch:
 
 env:

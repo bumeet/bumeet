@@ -1,11 +1,7 @@
 name: "Dev — Start resources"
 
-# Runs Mon–Fri at 08:00 Madrid time (06:00 UTC summer / 07:00 UTC winter)
-# Does NOT run on weekends — use workflow_dispatch to start manually
-# Can be triggered manually at any time
+# Manual only — go to GitHub Actions → Dev — Start resources → Run workflow
 on:
-  schedule:
-    - cron: "0 7 * * 1-5"   # Mon–Fri 07:00 UTC  (~09:00 CEST / 08:00 CET)
   workflow_dispatch:
 
 env:
