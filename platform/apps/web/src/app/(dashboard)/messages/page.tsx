@@ -17,6 +17,28 @@ type Message = {
   createdAt: string;
 };
 
+const SOURCE_ICONS: Record<string, string> = {
+  Slack: '💬',
+  'Google Calendar': '📅',
+  Microsoft: '📆',
+};
+
+function parseMessageMeta(content: string): { label: string; source: string | null; endTime: string | null } {
+  // Format: "BUSY · Google Calendar · ends 15:30" or "BUSY · Slack" or "FREE"
+  if (!content.startsWith('BUSY') && content !== 'FREE') return { label: content, source: null, endTime: null };
+
+  const parts = content.split(' · ');
+  const label = parts[0]; // BUSY or FREE
+  const sourcePart = parts[1] ?? null;
+  const endPart = parts.find((p) => p.startsWith('ends ')) ?? null;
+  const endTime = endPart ? endPart.replace('ends ', '') : null;
+
+  // Extract source (strip "+ OtherSource" if combined)
+  const source = sourcePart?.replace(/ \+ .+/, '') ?? null;
+
+  return { label, source, endTime };
+}
+
 const TEMPLATES = ['In a meeting', 'Back at 5pm', 'Do not disturb', 'Working from home', 'BRB', 'On a call'];
 
 const MAX_LEN = 200;
@@ -158,7 +180,23 @@ export default function MessagesPage() {
                   const Icon = status.icon;
                   return (
                     <div key={msg.id} className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                      <p className="text-sm text-gray-900 truncate">{msg.content}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          'text-xs font-bold px-2 py-0.5 rounded-full',
+                          msg.content.startsWith('BUSY') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        )}>
+                          {parseMessageMeta(msg.content).label}
+                        </span>
+                        {(() => {
+                          const { source, endTime } = parseMessageMeta(msg.content);
+                          return source ? (
+                            <span className="flex items-center gap-1 text-xs text-gray-500">
+                              {SOURCE_ICONS[source] ?? '🔗'} {source}
+                              {endTime && <span className="text-gray-400">· ends {endTime}</span>}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className={cn('flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded', status.className)}>
                           <Icon size={10} className={msg.status === 'pending' ? 'animate-spin' : ''} />

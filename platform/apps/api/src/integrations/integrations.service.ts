@@ -63,7 +63,7 @@ export class IntegrationsService {
   }
 
   /** Returns whether the user has an active calendar event right now. */
-  async getBusyStatus(userId: string): Promise<{ busy: boolean; reason: string | null; source: string | null }> {
+  async getBusyStatus(userId: string): Promise<{ busy: boolean; reason: string | null; source: string | null; endAt: string | null }> {
     const now = new Date();
     const event = await this.prisma.calendarEvent.findFirst({
       where: {
@@ -77,10 +77,15 @@ export class IntegrationsService {
     });
 
     if (event) {
-      return { busy: true, reason: event.title, source: event.integration.provider };
+      return {
+        busy: true,
+        reason: event.title,
+        source: event.integration.provider,
+        endAt: event.endAt.toISOString(),
+      };
     }
 
-    return { busy: false, reason: null, source: null };
+    return { busy: false, reason: null, source: null, endAt: null };
   }
 
   async disconnect(userId: string, integrationId: string) {
