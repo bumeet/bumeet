@@ -21,9 +21,9 @@ class BleSettings(BaseModel):
 	device_address: str = ""
 	characteristic_uuid: str = ""
 	service_uuid: str | None = None
-	payload_encoding: Literal["hex", "text"] = "hex"
-	busy_payload: str = "01"
-	free_payload: str = "00"
+	payload_encoding: Literal["hex", "text"] = "text"
+	busy_payload: str = "BUSY"
+	free_payload: str = "FREE"
 	write_with_response: bool = True
 	connect_timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
 
