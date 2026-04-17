@@ -18,8 +18,9 @@ export class SlackService {
   private readonly API_URL = 'https://slack.com/api';
 
   // Bot scopes (scope param) + user scopes (user_scope param)
+  // Note: identity.basic / identity.email are legacy OAuth v1 scopes — not valid in OAuth v2
   private readonly SCOPES = 'channels:history,im:history,users:read';
-  private readonly USER_SCOPES = 'identity.basic,identity.email,users.profile:read';
+  private readonly USER_SCOPES = 'users.profile:read';
 
   constructor(
     private config: ConfigService,
@@ -45,10 +46,10 @@ export class SlackService {
     const userId = Buffer.from(state, 'base64').toString('utf8');
 
     const tokens = await this.exchangeCode(code);
-    const profile = await this.getProfile(tokens.authed_user?.access_token ?? tokens.access_token);
 
-    const providerAccountId = tokens.authed_user?.id ?? profile.user?.id;
-    const label = profile.user?.email ?? profile.user?.name ?? undefined;
+    // authed_user.id is always present in OAuth v2 responses — no need to call users.identity
+    const providerAccountId = tokens.authed_user?.id ?? tokens.team?.id ?? 'unknown';
+    const label = tokens.authed_user?.email ?? tokens.team?.name ?? undefined;
 
     const count = await this.prisma.integrationAccount.count({
       where: { userId, provider: 'slack' },
@@ -211,10 +212,4 @@ export class SlackService {
     return { inCall, status: statusText, emoji: statusEmoji };
   }
 
-  private async getProfile(accessToken: string) {
-    const res = await fetch(`${this.API_URL}/users.identity`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    return res.json();
-  }
 }
