@@ -34,6 +34,7 @@ jobs:
           output_location: .next
           skip_api_build: true
         env:
+          NEXT_PUBLIC_SITE_MODE: app
           NEXT_PUBLIC_API_URL: https://app-bumeet-dev-api.azurewebsites.net/api/v1
           NEXTAUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
