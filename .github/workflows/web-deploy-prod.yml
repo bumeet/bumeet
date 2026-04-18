@@ -34,10 +34,10 @@ jobs:
           skip_api_build: true
         env:
           NEXT_PUBLIC_API_URL:              https://app-bumeet-dev-api.azurewebsites.net/api/v1
-          NEXTAUTH_URL:                     https://polite-grass-0623caf03.7.azurestaticapps.net
+          NEXTAUTH_URL:                     https://bumeet.es
           NEXTAUTH_SECRET:                  ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_SECRET:                      ${{ secrets.NEXTAUTH_SECRET }}
-          AUTH_URL:                         https://polite-grass-0623caf03.7.azurestaticapps.net
+          AUTH_URL:                         https://bumeet.es
           AUTH_GOOGLE_ID:                   ${{ secrets.GOOGLE_CLIENT_ID }}
           AUTH_GOOGLE_SECRET:               ${{ secrets.GOOGLE_CLIENT_SECRET }}
           AUTH_MICROSOFT_ENTRA_ID_ID:       ${{ secrets.MICROSOFT_CLIENT_ID }}
