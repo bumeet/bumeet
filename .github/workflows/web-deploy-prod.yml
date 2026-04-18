@@ -33,7 +33,7 @@ jobs:
           output_location: .next
           skip_api_build: true
         env:
-          NEXT_PUBLIC_API_URL:              https://app-bumeet-dev-api.azurewebsites.net/api/v1
+          NEXT_PUBLIC_API_URL:              https://api.bumeet.es/api/v1
           NEXTAUTH_URL:                     https://bumeet.es
           NEXTAUTH_SECRET:                  ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_SECRET:                      ${{ secrets.NEXTAUTH_SECRET }}
