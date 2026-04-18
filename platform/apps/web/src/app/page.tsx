@@ -321,17 +321,18 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             {/* Language toggle */}
-            <div className="flex items-center rounded-xl border border-gray-200 overflow-hidden text-xs font-semibold">
+            <div className="flex items-center rounded-full border-2 border-gray-200 overflow-hidden text-sm font-bold shadow-sm">
               <button
                 onClick={() => setLang('es')}
-                className={`px-3 py-1.5 transition-colors ${lang === 'es' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-              >ES</button>
+                className={`px-4 py-1.5 transition-colors ${lang === 'es' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
+              >🇪🇸 ES</button>
+              <div className="w-px h-5 bg-gray-200" />
               <button
                 onClick={() => setLang('en')}
-                className={`px-3 py-1.5 transition-colors ${lang === 'en' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-              >EN</button>
+                className={`px-4 py-1.5 transition-colors ${lang === 'en' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
+              >🇬🇧 EN</button>
             </div>
-            <Link href="/login" className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-600 transition-colors">
+            <Link href="/login" className="hidden sm:block px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-600 transition-colors">
               {t.nav.signin}
             </Link>
           </div>
