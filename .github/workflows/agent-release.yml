@@ -107,10 +107,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: "BUMEET Agent ${{ github.ref_name || inputs.tag }}"
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: "BUMEET Agent ${{ inputs.tag || github.ref_name }}"
           body: |
-            ## BUMEET Agent ${{ github.ref_name || inputs.tag }}
+            ## BUMEET Agent ${{ inputs.tag || github.ref_name }}
 
             ### Download
 
