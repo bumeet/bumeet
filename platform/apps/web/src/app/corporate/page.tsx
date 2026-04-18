@@ -35,7 +35,7 @@ function Nav() {
 
         {/* CTAs */}
         <div className="hidden md:flex items-center gap-3">
-          <a href="https://icy-hill-066964603.2.azurestaticapps.net/login" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+          <a href="https://app.bumeet.es/login" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
             Log In
           </a>
           <a href="#contact" className="px-5 py-2 rounded-lg bg-sky-500 text-white text-sm font-semibold hover:bg-sky-600 transition-colors shadow-sm shadow-sky-200">
@@ -56,7 +56,7 @@ function Nav() {
           <a href="#for-business" onClick={() => setOpen(false)}>For Business</a>
           <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
           <hr className="border-slate-100" />
-          <a href="https://icy-hill-066964603.2.azurestaticapps.net/login" target="_blank" rel="noopener noreferrer" className="text-slate-500">Log In</a>
+          <a href="https://app.bumeet.es/login" target="_blank" rel="noopener noreferrer" className="text-slate-500">Log In</a>
           <a href="#contact" className="px-5 py-2.5 rounded-lg bg-sky-500 text-white font-semibold text-center">
             Request Demo
           </a>
@@ -605,7 +605,7 @@ function Footer() {
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
             <a href="#for-business" className="hover:text-white transition-colors">For Business</a>
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
-            <a href="https://icy-hill-066964603.2.azurestaticapps.net/login" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Log In</a>
+            <a href="https://app.bumeet.es/login" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Log In</a>
           </nav>
           <p className="text-xs text-slate-600">
             © {new Date().getFullYear()} BUMEET · Antonio Rodes · All rights reserved

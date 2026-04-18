@@ -36,10 +36,10 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: https://api.bumeet.es/api/v1
           NEXT_PUBLIC_SITE_MODE: app
-          NEXTAUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
+          NEXTAUTH_URL: https://app.bumeet.es
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          AUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
+          AUTH_URL: https://app.bumeet.es
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           AUTH_GOOGLE_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
