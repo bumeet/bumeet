@@ -35,6 +35,7 @@ jobs:
           skip_api_build: true
         env:
           NEXT_PUBLIC_API_URL: https://app-bumeet-dev-api.azurewebsites.net/api/v1
+          NEXT_PUBLIC_SITE_MODE: app
           NEXTAUTH_URL: https://icy-hill-066964603.2.azurestaticapps.net
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
@@ -51,6 +52,7 @@ jobs:
           SLACK_CLIENT_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}
           AUTH_SLACK_ID: ${{ secrets.SLACK_CLIENT_ID }}
           AUTH_SLACK_SECRET: ${{ secrets.SLACK_CLIENT_SECRET }}
+
 
   close-pr:
     name: Close PR environment
