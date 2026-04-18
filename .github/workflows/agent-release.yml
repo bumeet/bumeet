@@ -41,7 +41,7 @@ jobs:
           cache: pip
 
       - name: Install agent + PyInstaller
-        run: pip install pyinstaller ".[agent]" || pip install pyinstaller -e .
+        run: pip install pyinstaller -e .
 
       # ── macOS ──────────────────────────────────────────────────────────────
       - name: Build (macOS)
