@@ -5,11 +5,12 @@ import Link from 'next/link';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
-function IconMonitor() {
+function IconDoor() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8M12 17v4" />
+      <rect x="3" y="2" width="18" height="20" rx="2" />
+      <circle cx="15.5" cy="12" r="0.75" fill="currentColor" stroke="none" />
+      <path d="M3 2h18" />
     </svg>
   );
 }
@@ -45,17 +46,19 @@ function IconBattery() {
     </svg>
   );
 }
-function IconBell() {
+function IconEdit() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" />
     </svg>
   );
 }
-function IconZap() {
+function IconCamera() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
-      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" />
+      <path d="M23 7 16 12l7 5V7Z" />
+      <rect x="1" y="5" width="15" height="14" rx="2" />
     </svg>
   );
 }
@@ -95,43 +98,87 @@ function IconArrow() {
   );
 }
 
-// ─── EinkDevice illustration ──────────────────────────────────────────────────
+// ─── E-ink door display illustration ─────────────────────────────────────────
 
-function EinkPreview({ busy }: { busy: boolean }) {
+type DisplayMode = 'disponible' | 'reunion' | 'nomolestar';
+
+function EinkDoorDisplay({ mode }: { mode: DisplayMode }) {
+  const configs = {
+    disponible: {
+      bg: '#e8e4d8',
+      headerBg: 'transparent',
+      headerText: '',
+      mainText: 'DISPONIBLE',
+      mainColor: '#1a1a1a',
+      subText: 'Puedes pasar',
+      dot: 'bg-green-400',
+    },
+    reunion: {
+      bg: '#e8e4d8',
+      headerBg: '#1a1a1a',
+      headerText: 'EN REUNIÓN',
+      mainText: '',
+      mainColor: '#1a1a1a',
+      subText: 'Finaliza a las 16:00',
+      dot: 'bg-red-400',
+    },
+    nomolestar: {
+      bg: '#1a1a1a',
+      headerBg: 'transparent',
+      headerText: '',
+      mainText: 'NO\nMOLESTAR',
+      mainColor: '#e8e4d8',
+      subText: '',
+      dot: 'bg-orange-400',
+    },
+  };
+
+  const cfg = configs[mode];
+
   return (
-    <div className="relative mx-auto" style={{ width: 160, height: 180 }}>
-      {/* Body */}
+    <div className="relative mx-auto" style={{ width: 160, height: 200 }}>
+      {/* Device body */}
       <div className="absolute inset-0 rounded-2xl shadow-2xl" style={{ background: 'linear-gradient(160deg,#2d2d2d,#1a1a1a)' }} />
       {/* Screen bezel */}
-      <div className="absolute rounded-xl" style={{ top: 18, left: 14, right: 14, bottom: 38, background: '#111' }}>
+      <div className="absolute rounded-xl" style={{ top: 18, left: 14, right: 14, bottom: 42, background: '#111' }}>
         {/* E-ink screen */}
-        <div className="absolute inset-1.5 rounded-lg overflow-hidden bg-[#e8e4d8] flex flex-col items-center justify-center">
-          {busy ? (
-            <>
-              <div className="w-full py-2 bg-black flex items-center justify-center">
-                <span className="text-white font-bold text-lg tracking-wider">BUSY</span>
-              </div>
-              <div className="flex-1 flex flex-col items-center justify-center gap-1 px-2">
-                <span className="text-[9px] text-gray-700 font-medium text-center leading-tight">Google Calendar</span>
-                <span className="text-[9px] text-gray-500">ends 15:30</span>
-              </div>
-            </>
-          ) : (
-            <span className="font-bold text-2xl tracking-widest text-gray-900">FREE</span>
+        <div
+          className="absolute inset-1.5 rounded-lg overflow-hidden flex flex-col"
+          style={{ background: cfg.bg }}
+        >
+          {cfg.headerBg !== 'transparent' && (
+            <div className="w-full py-1.5 flex items-center justify-center" style={{ background: cfg.headerBg }}>
+              <span className="font-black text-[10px] tracking-widest" style={{ color: '#e8e4d8' }}>{cfg.headerText}</span>
+            </div>
           )}
+          <div className="flex-1 flex flex-col items-center justify-center gap-1 px-2">
+            {cfg.mainText && (
+              <span
+                className="font-black text-center leading-tight"
+                style={{ color: cfg.mainColor, fontSize: cfg.mainText.includes('\n') ? 18 : 14, whiteSpace: 'pre-line', letterSpacing: 1 }}
+              >
+                {cfg.mainText}
+              </span>
+            )}
+            {cfg.subText && (
+              <span className="text-[8px] text-center mt-1" style={{ color: cfg.mainText === '' ? '#555' : '#888' }}>
+                {cfg.subText}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-      {/* LED */}
-      <div className={`absolute rounded-full w-2 h-2 ${busy ? 'bg-red-400' : 'bg-green-400'}`} style={{ top: 10, left: '50%', transform: 'translateX(-50%)' }} />
-      {/* Buttons */}
+      {/* Status LED */}
+      <div className={`absolute rounded-full w-2 h-2 ${cfg.dot}`} style={{ top: 10, left: '50%', transform: 'translateX(-50%)' }} />
+      {/* Side buttons */}
       {[28, 50, 72].map((t) => (
         <div key={t} className="absolute right-1.5 w-2 h-5 rounded-full bg-gray-600" style={{ top: t }} />
       ))}
       {/* USB-C */}
-      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-6 h-2 rounded-sm bg-gray-700" />
+      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-6 h-2 rounded-sm bg-gray-700" />
       {/* Label */}
-      <div className="absolute bottom-2 left-0 right-0 text-center">
-        <span className="text-gray-500 font-bold" style={{ fontSize: 7, letterSpacing: 2 }}>M5STACK COREINK</span>
+      <div className="absolute bottom-3 left-0 right-0 text-center">
+        <span className="text-gray-500 font-bold" style={{ fontSize: 6, letterSpacing: 2 }}>BUMEET · E-INK</span>
       </div>
     </div>
   );
@@ -165,8 +212,8 @@ function ContactForm() {
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <IconCheck />
         </div>
-        <p className="text-lg font-semibold text-gray-900">Message sent!</p>
-        <p className="text-gray-500 text-sm">I'll get back to you as soon as possible.</p>
+        <p className="text-lg font-semibold text-gray-900">¡Mensaje enviado!</p>
+        <p className="text-gray-500 text-sm">Te responderé lo antes posible.</p>
       </div>
     );
   }
@@ -175,13 +222,13 @@ function ContactForm() {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
           <input
             required
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Your name"
+            placeholder="Tu nombre"
           />
         </div>
         <div>
@@ -192,19 +239,19 @@ function ContactForm() {
             value={form.email}
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="you@example.com"
+            placeholder="tu@email.com"
           />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
         <textarea
           required
           rows={4}
           value={form.message}
           onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-          placeholder="How can I help you?"
+          placeholder="¿En qué puedo ayudarte?"
         />
       </div>
       <button
@@ -212,7 +259,7 @@ function ContactForm() {
         disabled={loading}
         className="self-start px-8 py-3 rounded-xl bg-brand font-semibold text-white text-sm hover:bg-brand-600 transition-colors disabled:opacity-60"
       >
-        {loading ? 'Sending…' : 'Send message'}
+        {loading ? 'Enviando…' : 'Enviar mensaje'}
       </button>
     </form>
   );
@@ -221,31 +268,72 @@ function ContactForm() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const FEATURES = [
-  { icon: <IconMonitor />, title: 'Camera & mic detection', desc: 'Detects active hardware on macOS, Windows and Linux — no manual toggles.' },
-  { icon: <IconCalendar />, title: 'Calendar sync', desc: 'Pulls live events from Google Calendar and Microsoft Calendar.' },
-  { icon: <IconSlack />, title: 'Slack presence', desc: 'Reads your real-time call status directly from the Slack API.' },
-  { icon: <IconBluetooth />, title: 'BLE e-ink display', desc: 'Sends FREE / BUSY to your M5Stack CoreInk over Bluetooth Low Energy.' },
-  { icon: <IconBattery />, title: 'Weeks of battery', desc: 'Deep-sleep firmware keeps the display running for weeks on a single charge.' },
-  { icon: <IconZap />, title: 'Instant transitions', desc: 'State changes are detected and propagated in under a second.' },
+  {
+    icon: <IconCamera />,
+    title: 'Detección automática',
+    desc: 'Detecta cuando tienes la cámara o el micrófono activos en macOS, Windows y Linux. Sin tocar nada.',
+  },
+  {
+    icon: <IconCalendar />,
+    title: 'Sincronización de calendario',
+    desc: 'Se conecta con Google Calendar y Microsoft Calendar para mostrar tus reuniones en tiempo real.',
+  },
+  {
+    icon: <IconSlack />,
+    title: 'Estado de Slack',
+    desc: 'Lee tu estado de llamada en Slack y actualiza la pantalla al instante.',
+  },
+  {
+    icon: <IconEdit />,
+    title: 'Mensaje personalizado',
+    desc: 'Pon cualquier mensaje desde tu ordenador: "No molestar", "Vuelvo en 10 min" o lo que necesites.',
+  },
+  {
+    icon: <IconBluetooth />,
+    title: 'Conexión inalámbrica',
+    desc: 'Comunicación por Bluetooth Low Energy. Sin cables, sin configuración de red.',
+  },
+  {
+    icon: <IconBattery />,
+    title: 'Meses de batería',
+    desc: 'La pantalla e-ink consume energía solo al cambiar. Una carga dura semanas o meses.',
+  },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Install the agent', desc: 'Download and run the lightweight background agent on your computer. It starts silently on login.' },
-  { n: '02', title: 'Connect your display', desc: 'Power on the M5Stack CoreInk. The agent finds it over BLE and starts sending status updates.' },
-  { n: '03', title: 'Sync your tools', desc: 'Connect Google Calendar, Microsoft Calendar, and Slack in the web dashboard. Done.' },
+  {
+    n: '01',
+    title: 'Coloca la pantalla en la puerta',
+    desc: 'Fija el dispositivo en la puerta de tu habitación u oficina. Funciona con cualquier superficie.',
+  },
+  {
+    n: '02',
+    title: 'Instala el agente en tu ordenador',
+    desc: 'Descarga e instala la aplicación de fondo. Arranca sola al iniciar sesión y no necesita atención.',
+  },
+  {
+    n: '03',
+    title: 'Trabaja sin interrupciones',
+    desc: 'La pantalla se actualiza sola cuando entras en una reunión, una llamada o pones un mensaje manual.',
+  },
 ];
 
-// GitHub Releases base — update REPO_SLUG when the repo is public/renamed
 const RELEASES_BASE = 'https://github.com/bumeet/bumeet/releases/latest/download';
 
 const DOWNLOADS = [
-  { icon: <IconApple />, label: 'macOS', sub: 'Apple Silicon & Intel', href: `${RELEASES_BASE}/bumeet-agent-macos` },
+  { icon: <IconApple />, label: 'macOS', sub: 'Apple Silicon & Intel', href: `${RELEASES_BASE}/bumeet-agent-macos.zip` },
   { icon: <IconWindows />, label: 'Windows', sub: '64-bit', href: `${RELEASES_BASE}/bumeet-agent-windows.exe` },
   { icon: <IconLinux />, label: 'Linux', sub: 'x86_64', href: `${RELEASES_BASE}/bumeet-agent-linux` },
 ];
 
+const MODES: { key: DisplayMode; label: string }[] = [
+  { key: 'disponible', label: 'Disponible' },
+  { key: 'reunion', label: 'En reunión' },
+  { key: 'nomolestar', label: 'No molestar' },
+];
+
 export default function LandingPage() {
-  const [busyPreview, setBusyPreview] = useState(false);
+  const [mode, setMode] = useState<DisplayMode>('disponible');
 
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased">
@@ -255,16 +343,16 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="text-xl font-bold tracking-tight" style={{ color: '#6C47FF' }}>BUMEET</span>
           <nav className="hidden sm:flex items-center gap-8 text-sm text-gray-600">
-            <a href="#how-it-works" className="hover:text-gray-900 transition-colors">How it works</a>
-            <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
-            <a href="#download" className="hover:text-gray-900 transition-colors">Download</a>
-            <a href="#contact" className="hover:text-gray-900 transition-colors">Contact</a>
+            <a href="#como-funciona" className="hover:text-gray-900 transition-colors">Cómo funciona</a>
+            <a href="#caracteristicas" className="hover:text-gray-900 transition-colors">Características</a>
+            <a href="#descarga" className="hover:text-gray-900 transition-colors">Descarga</a>
+            <a href="#contacto" className="hover:text-gray-900 transition-colors">Contacto</a>
           </nav>
           <Link
             href="/login"
             className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
           >
-            Sign in
+            Acceder
           </Link>
         </div>
       </header>
@@ -274,58 +362,67 @@ export default function LandingPage() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 text-brand text-xs font-semibold mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-            Open beta
+            Beta abierta
           </div>
           <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight text-gray-900">
-            Your desk,<br />
-            <span style={{ color: '#6C47FF' }}>always in sync</span>
+            La puerta que<br />
+            <span style={{ color: '#6C47FF' }}>habla por ti</span>
           </h1>
           <p className="mt-6 text-lg text-gray-500 leading-relaxed max-w-lg">
-            BUMEET combines your calendar, Slack status, and camera activity into a single FREE / BUSY signal — displayed on an e-ink screen on your desk.
+            BUMEET es una pantalla e-ink que se coloca en la puerta de tu habitación u oficina. Muestra automáticamente si estás disponible, en reunión o no quieres que te interrumpan — sin que tengas que hacer nada.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href="#download"
+              href="#descarga"
               className="px-6 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-600 transition-colors flex items-center gap-2"
             >
-              Download agent <IconArrow />
+              Descargar agente <IconArrow />
             </a>
-            <Link
-              href="/login"
+            <a
+              href="#como-funciona"
               className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-gray-50 transition-colors"
             >
-              Open dashboard
-            </Link>
+              Ver cómo funciona
+            </a>
           </div>
         </div>
 
         {/* Interactive device preview */}
         <div className="flex flex-col items-center gap-6">
-          <EinkPreview busy={busyPreview} />
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setBusyPreview(false)}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${!busyPreview ? 'bg-gray-900 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-            >
-              FREE
-            </button>
-            <button
-              onClick={() => setBusyPreview(true)}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${busyPreview ? 'bg-gray-900 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-            >
-              BUSY
-            </button>
+          {/* Door context */}
+          <div className="relative flex items-center justify-center">
+            {/* Simplified door frame */}
+            <div className="relative rounded-lg border-4 border-gray-300 bg-amber-50 shadow-xl" style={{ width: 220, height: 280 }}>
+              {/* Door knob */}
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-500 shadow" />
+              {/* Device mounted on door */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                <EinkDoorDisplay mode={mode} />
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-gray-400">Interactive preview of the M5Stack CoreInk display</p>
+          {/* Mode buttons */}
+          <div className="flex items-center gap-2">
+            {MODES.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setMode(key)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${mode === key ? 'bg-gray-900 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400">Vista previa interactiva de la pantalla en la puerta</p>
         </div>
       </section>
 
       {/* ── How it works ── */}
-      <section id="how-it-works" className="bg-gray-50 py-24">
+      <section id="como-funciona" className="bg-gray-50 py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-extrabold tracking-tight">How it works</h2>
-            <p className="mt-3 text-gray-500">Up and running in minutes, no technical knowledge required.</p>
+            <h2 className="text-3xl font-extrabold tracking-tight">Cómo funciona</h2>
+            <p className="mt-3 text-gray-500">Listo en minutos. Sin configuración técnica.</p>
           </div>
           <div className="grid sm:grid-cols-3 gap-8">
             {STEPS.map(({ n, title, desc }) => (
@@ -340,10 +437,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="py-24 max-w-6xl mx-auto px-6">
+      <section id="caracteristicas" className="py-24 max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-extrabold tracking-tight">Everything you need</h2>
-          <p className="mt-3 text-gray-500">Built for people who focus deeply and need the world to know it.</p>
+          <h2 className="text-3xl font-extrabold tracking-tight">Todo lo que necesitas</h2>
+          <p className="mt-3 text-gray-500">Pensado para personas que necesitan concentrarse y no quieren interrupciones.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {FEATURES.map(({ icon, title, desc }) => (
@@ -359,11 +456,11 @@ export default function LandingPage() {
       </section>
 
       {/* ── Download ── */}
-      <section id="download" className="py-24" style={{ background: 'linear-gradient(135deg, #6C47FF 0%, #4826dd 100%)' }}>
+      <section id="descarga" className="py-24" style={{ background: 'linear-gradient(135deg, #6C47FF 0%, #4826dd 100%)' }}>
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-extrabold text-white tracking-tight">Download BUMEET Agent</h2>
+          <h2 className="text-3xl font-extrabold text-white tracking-tight">Descarga el agente BUMEET</h2>
           <p className="mt-3 text-white/70 max-w-md mx-auto">
-            The agent runs silently in the background and communicates with your display over Bluetooth.
+            Se ejecuta en segundo plano y se comunica con la pantalla de tu puerta por Bluetooth. Sin consumo notable de recursos.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             {DOWNLOADS.map(({ icon, label, sub, href }) => (
@@ -381,25 +478,25 @@ export default function LandingPage() {
             ))}
           </div>
           <p className="mt-8 text-white/40 text-xs">
-            Requires Python 3.11+ · Bluetooth LE adapter · M5Stack CoreInk
+            Requiere Bluetooth LE · Compatible con macOS 12+, Windows 10+ y Linux
           </p>
         </div>
       </section>
 
       {/* ── Contact ── */}
-      <section id="contact" className="py-24 max-w-6xl mx-auto px-6">
+      <section id="contacto" className="py-24 max-w-6xl mx-auto px-6">
         <div className="grid lg:grid-cols-2 gap-16 items-start">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight">Get in touch</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight">Contacto</h2>
             <p className="mt-4 text-gray-500 leading-relaxed">
-              Questions about setup, feature requests, or anything else — I'm happy to help.
+              ¿Tienes preguntas sobre la configuración, quieres más información o tienes alguna propuesta? Escríbeme.
             </p>
             <ul className="mt-8 space-y-3">
               {[
-                'Hardware setup support',
-                'Integration questions',
-                'Feature requests',
-                'Business inquiries',
+                'Soporte para la configuración del hardware',
+                'Preguntas sobre integraciones',
+                'Sugerencias de mejora',
+                'Consultas comerciales o de distribución',
               ].map(item => (
                 <li key={item} className="flex items-center gap-2 text-sm text-gray-600">
                   <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f0edff', color: '#6C47FF' }}>
@@ -420,11 +517,11 @@ export default function LandingPage() {
       <footer className="border-t border-gray-100 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
           <span className="font-bold" style={{ color: '#6C47FF' }}>BUMEET</span>
-          <span>© {new Date().getFullYear()} Antonio Rodes · All rights reserved</span>
+          <span>© {new Date().getFullYear()} Antonio Rodes · Todos los derechos reservados</span>
           <nav className="flex gap-6">
-            <a href="#how-it-works" className="hover:text-gray-600 transition-colors">Docs</a>
-            <a href="#contact" className="hover:text-gray-600 transition-colors">Contact</a>
-            <Link href="/login" className="hover:text-gray-600 transition-colors">Dashboard</Link>
+            <a href="#como-funciona" className="hover:text-gray-600 transition-colors">Cómo funciona</a>
+            <a href="#contacto" className="hover:text-gray-600 transition-colors">Contacto</a>
+            <Link href="/login" className="hover:text-gray-600 transition-colors">Acceder</Link>
           </nav>
         </div>
       </footer>
