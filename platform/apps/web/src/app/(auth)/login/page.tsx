@@ -65,7 +65,7 @@ export default function LoginPage() {
       if (res?.error) {
         setError('Invalid email or password');
       } else {
-        router.push('/');
+        router.push('/dashboard');
       }
     } catch {
       setError('Something went wrong');
@@ -76,13 +76,13 @@ export default function LoginPage() {
 
   const handleOAuth = async (provider: string) => {
     setOauthLoading(provider);
-    await signIn(provider, { callbackUrl: '/' });
+    await signIn(provider, { callbackUrl: '/dashboard' });
   };
 
   const handleDemo = async () => {
     setLoading(true);
     await signIn('credentials', { email: 'demo@bumeet.io', password: 'Demo1234!', redirect: false });
-    router.push('/');
+    router.push('/dashboard');
   };
 
   return (
