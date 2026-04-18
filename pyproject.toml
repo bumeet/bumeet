@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "bumeet-agent"
+version = "0.1.0"
+description = "BUMEET desktop agent — BLE presence indicator"
+requires-python = ">=3.11"
+dependencies = [
+    "bleak>=0.22",
+    "pydantic>=2.6",
+    "platformdirs>=4.2",
+    "psutil>=5.9",
+    "pillow>=10.0",
+    "pystray>=0.19",
+    "pyobjc-core>=10.3; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.3; sys_platform == 'darwin'",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.scripts]
+bumeet-agent = "bumeet_agent.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

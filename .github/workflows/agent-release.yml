@@ -1,0 +1,133 @@
+name: "Agent — Build & Release"
+
+# Triggered by pushing a version tag: git tag v1.0.0 && git push --tags
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v1.0.0)"
+        required: true
+
+jobs:
+  build:
+    name: "Build · ${{ matrix.os }}"
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos
+            runner: macos-latest
+            artifact: bumeet-agent-macos
+            asset: "BUMEET Agent.app"
+          - os: windows
+            runner: windows-latest
+            artifact: bumeet-agent-windows.exe
+            asset: bumeet-agent-windows.exe
+          - os: linux
+            runner: ubuntu-latest
+            artifact: bumeet-agent-linux
+            asset: bumeet-agent-linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install agent + PyInstaller
+        run: pip install pyinstaller ".[agent]" || pip install pyinstaller -e .
+
+      # ── macOS ──────────────────────────────────────────────────────────────
+      - name: Build (macOS)
+        if: matrix.os == 'macos'
+        run: |
+          pyinstaller bumeet-agent.spec
+          # Zip the .app bundle so GitHub Releases can attach it
+          cd dist
+          zip -r bumeet-agent-macos.zip "BUMEET Agent.app"
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bumeet-agent-macos
+          path: dist/bumeet-agent-macos.zip
+
+      # ── Windows ────────────────────────────────────────────────────────────
+      - name: Build (Windows)
+        if: matrix.os == 'windows'
+        run: pyinstaller bumeet-agent.spec --name bumeet-agent-windows
+        shell: bash
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bumeet-agent-windows
+          path: dist/bumeet-agent-windows.exe
+
+      # ── Linux ──────────────────────────────────────────────────────────────
+      - name: Build (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get install -y libbluetooth-dev libdbus-1-dev
+          pyinstaller bumeet-agent.spec --name bumeet-agent-linux
+
+      - name: Upload Linux artifact
+        if: matrix.os == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bumeet-agent-linux
+          path: dist/bumeet-agent-linux
+
+  release:
+    name: "Publish GitHub Release"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: "BUMEET Agent ${{ github.ref_name || inputs.tag }}"
+          body: |
+            ## BUMEET Agent ${{ github.ref_name || inputs.tag }}
+
+            ### Download
+
+            | Platform | Archivo | Notas |
+            |---|---|---|
+            | macOS | `bumeet-agent-macos.zip` | Apple Silicon + Intel · descomprime y arrastra a Aplicaciones |
+            | Windows | `bumeet-agent-windows.exe` | 64-bit · ejecuta directamente |
+            | Linux | `bumeet-agent-linux` | x86_64 · `chmod +x` antes de ejecutar |
+
+            ### Primeros pasos
+            1. Descarga el binario para tu plataforma
+            2. **macOS/Linux:** `chmod +x bumeet-agent-*`
+            3. Ejecuta el agente y configura el dispositivo BLE en `~/.config/bumeet-agent/config.json`
+
+            Documentación completa en [bumeet.es](https://bumeet.es).
+
+            Repositorio: [github.com/bumeet/bumeet](https://github.com/bumeet/bumeet)
+          files: |
+            dist/bumeet-agent-macos/bumeet-agent-macos.zip
+            dist/bumeet-agent-windows/bumeet-agent-windows.exe
+            dist/bumeet-agent-linux/bumeet-agent-linux
+          draft: false
+          prerelease: false
