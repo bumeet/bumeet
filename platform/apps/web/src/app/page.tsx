@@ -5,15 +5,6 @@ import Link from 'next/link';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
-function IconDoor() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
-      <rect x="3" y="2" width="18" height="20" rx="2" />
-      <circle cx="15.5" cy="12" r="0.75" fill="currentColor" stroke="none" />
-      <path d="M3 2h18" />
-    </svg>
-  );
-}
 function IconCalendar() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
@@ -98,85 +89,128 @@ function IconArrow() {
   );
 }
 
+// ─── Translations ─────────────────────────────────────────────────────────────
+
+type Lang = 'es' | 'en';
+
+const T = {
+  es: {
+    nav: { howItWorks: 'Cómo funciona', features: 'Características', download: 'Descarga', contact: 'Contacto', signin: 'Acceder' },
+    badge: 'Beta abierta',
+    heroTitle: ['La puerta que', 'habla por ti'],
+    heroDesc: 'BUMEET es una pantalla e-ink que se coloca en la puerta de tu habitación u oficina. Muestra automáticamente si estás disponible, en reunión o no quieres que te interrumpan — sin que tengas que hacer nada.',
+    heroCta: 'Descargar agente',
+    heroSub: 'Ver cómo funciona',
+    previewCaption: 'Vista previa interactiva de la pantalla en la puerta',
+    modes: ['Disponible', 'En reunión', 'No molestar'],
+    howTitle: 'Cómo funciona',
+    howSub: 'Listo en minutos. Sin configuración técnica.',
+    steps: [
+      { n: '01', title: 'Coloca la pantalla en la puerta', desc: 'Fija el dispositivo en la puerta de tu habitación u oficina. Funciona con cualquier superficie.' },
+      { n: '02', title: 'Instala el agente en tu ordenador', desc: 'Descarga e instala la aplicación de fondo. Arranca sola al iniciar sesión y no necesita atención.' },
+      { n: '03', title: 'Trabaja sin interrupciones', desc: 'La pantalla se actualiza sola cuando entras en una reunión, una llamada o pones un mensaje manual.' },
+    ],
+    featTitle: 'Todo lo que necesitas',
+    featSub: 'Pensado para personas que necesitan concentrarse y no quieren interrupciones.',
+    features: [
+      { title: 'Detección automática', desc: 'Detecta cuando tienes la cámara o el micrófono activos en macOS, Windows y Linux. Sin tocar nada.' },
+      { title: 'Sincronización de calendario', desc: 'Se conecta con Google Calendar y Microsoft Calendar para mostrar tus reuniones en tiempo real.' },
+      { title: 'Estado de Slack', desc: 'Lee tu estado de llamada en Slack y actualiza la pantalla al instante.' },
+      { title: 'Mensaje personalizado', desc: 'Pon cualquier mensaje desde tu ordenador: "No molestar", "Vuelvo en 10 min" o lo que necesites.' },
+      { title: 'Conexión inalámbrica', desc: 'Comunicación por Bluetooth Low Energy. Sin cables, sin configuración de red.' },
+      { title: 'Meses de batería', desc: 'La pantalla e-ink consume energía solo al cambiar. Una carga dura semanas o meses.' },
+    ],
+    dlTitle: 'Descarga el agente BUMEET',
+    dlDesc: 'Se ejecuta en segundo plano y se comunica con la pantalla de tu puerta por Bluetooth. Sin consumo notable de recursos.',
+    dlNote: 'Requiere Bluetooth LE · Compatible con macOS 12+, Windows 10+ y Linux',
+    contactTitle: 'Contacto',
+    contactDesc: '¿Tienes preguntas sobre la configuración, quieres más información o tienes alguna propuesta? Escríbeme.',
+    contactItems: ['Soporte para la configuración del hardware', 'Preguntas sobre integraciones', 'Sugerencias de mejora', 'Consultas comerciales o de distribución'],
+    formName: 'Nombre', formEmail: 'Email', formMsg: 'Mensaje',
+    formNamePh: 'Tu nombre', formEmailPh: 'tu@email.com', formMsgPh: '¿En qué puedo ayudarte?',
+    formSend: 'Enviar mensaje', formSending: 'Enviando…',
+    formOkTitle: '¡Mensaje enviado!', formOkDesc: 'Te responderé lo antes posible.',
+    footerRights: 'Todos los derechos reservados',
+  },
+  en: {
+    nav: { howItWorks: 'How it works', features: 'Features', download: 'Download', contact: 'Contact', signin: 'Sign in' },
+    badge: 'Open beta',
+    heroTitle: ['The door that', 'speaks for you'],
+    heroDesc: 'BUMEET is an e-ink screen you place on the door of your room or office. It automatically shows whether you are available, in a meeting, or do not want to be interrupted — without you doing a thing.',
+    heroCta: 'Download agent',
+    heroSub: 'See how it works',
+    previewCaption: 'Interactive preview of the door display',
+    modes: ['Available', 'In a meeting', 'Do not disturb'],
+    howTitle: 'How it works',
+    howSub: 'Up and running in minutes. No technical knowledge required.',
+    steps: [
+      { n: '01', title: 'Place the screen on the door', desc: 'Attach the device to the door of your room or office. Works on any surface.' },
+      { n: '02', title: 'Install the agent on your computer', desc: 'Download and install the background app. It launches automatically on login and needs no attention.' },
+      { n: '03', title: 'Work without interruptions', desc: 'The screen updates itself when you join a meeting, start a call, or set a manual message.' },
+    ],
+    featTitle: 'Everything you need',
+    featSub: 'Built for people who need to focus deeply and want the world to know it.',
+    features: [
+      { title: 'Automatic detection', desc: 'Detects when your camera or microphone is active on macOS, Windows and Linux. No manual toggles.' },
+      { title: 'Calendar sync', desc: 'Connects to Google Calendar and Microsoft Calendar to display your meetings in real time.' },
+      { title: 'Slack status', desc: 'Reads your call status from Slack and updates the screen instantly.' },
+      { title: 'Custom message', desc: 'Set any message from your computer: "Do not disturb", "Back in 10 min", or whatever you need.' },
+      { title: 'Wireless connection', desc: 'Communicates over Bluetooth Low Energy. No cables, no network setup.' },
+      { title: 'Months of battery', desc: 'The e-ink screen only consumes power when the content changes. One charge lasts weeks or months.' },
+    ],
+    dlTitle: 'Download BUMEET Agent',
+    dlDesc: 'Runs silently in the background and communicates with your door display over Bluetooth. Negligible resource usage.',
+    dlNote: 'Requires Bluetooth LE · Compatible with macOS 12+, Windows 10+ and Linux',
+    contactTitle: 'Contact',
+    contactDesc: 'Questions about setup, feature requests, or anything else — feel free to reach out.',
+    contactItems: ['Hardware setup support', 'Integration questions', 'Feature requests', 'Business or distribution inquiries'],
+    formName: 'Name', formEmail: 'Email', formMsg: 'Message',
+    formNamePh: 'Your name', formEmailPh: 'you@example.com', formMsgPh: 'How can I help you?',
+    formSend: 'Send message', formSending: 'Sending…',
+    formOkTitle: 'Message sent!', formOkDesc: "I'll get back to you as soon as possible.",
+    footerRights: 'All rights reserved',
+  },
+};
+
 // ─── E-ink door display illustration ─────────────────────────────────────────
 
-type DisplayMode = 'disponible' | 'reunion' | 'nomolestar';
+type DisplayMode = 'available' | 'meeting' | 'dnd';
 
 function EinkDoorDisplay({ mode }: { mode: DisplayMode }) {
   const configs = {
-    disponible: {
-      bg: '#e8e4d8',
-      headerBg: 'transparent',
-      headerText: '',
-      mainText: 'DISPONIBLE',
-      mainColor: '#1a1a1a',
-      subText: 'Puedes pasar',
-      dot: 'bg-green-400',
-    },
-    reunion: {
-      bg: '#e8e4d8',
-      headerBg: '#1a1a1a',
-      headerText: 'EN REUNIÓN',
-      mainText: '',
-      mainColor: '#1a1a1a',
-      subText: 'Finaliza a las 16:00',
-      dot: 'bg-red-400',
-    },
-    nomolestar: {
-      bg: '#1a1a1a',
-      headerBg: 'transparent',
-      headerText: '',
-      mainText: 'NO\nMOLESTAR',
-      mainColor: '#e8e4d8',
-      subText: '',
-      dot: 'bg-orange-400',
-    },
+    available: { bg: '#e8e4d8', headerBg: null, headerText: '', mainText: 'AVAILABLE', mainColor: '#1a1a1a', subText: '', dot: 'bg-green-400' },
+    meeting:   { bg: '#e8e4d8', headerBg: '#1a1a1a', headerText: 'IN A MEETING', mainText: '', mainColor: '#1a1a1a', subText: 'Ends at 16:00', dot: 'bg-red-400' },
+    dnd:       { bg: '#1a1a1a', headerBg: null, headerText: '', mainText: 'DO NOT\nDISTURB', mainColor: '#e8e4d8', subText: '', dot: 'bg-orange-400' },
   };
-
   const cfg = configs[mode];
 
   return (
     <div className="relative mx-auto" style={{ width: 160, height: 200 }}>
-      {/* Device body */}
       <div className="absolute inset-0 rounded-2xl shadow-2xl" style={{ background: 'linear-gradient(160deg,#2d2d2d,#1a1a1a)' }} />
-      {/* Screen bezel */}
       <div className="absolute rounded-xl" style={{ top: 18, left: 14, right: 14, bottom: 42, background: '#111' }}>
-        {/* E-ink screen */}
-        <div
-          className="absolute inset-1.5 rounded-lg overflow-hidden flex flex-col"
-          style={{ background: cfg.bg }}
-        >
-          {cfg.headerBg !== 'transparent' && (
+        <div className="absolute inset-1.5 rounded-lg overflow-hidden flex flex-col" style={{ background: cfg.bg }}>
+          {cfg.headerBg && (
             <div className="w-full py-1.5 flex items-center justify-center" style={{ background: cfg.headerBg }}>
-              <span className="font-black text-[10px] tracking-widest" style={{ color: '#e8e4d8' }}>{cfg.headerText}</span>
+              <span className="font-black text-[9px] tracking-widest" style={{ color: '#e8e4d8' }}>{cfg.headerText}</span>
             </div>
           )}
           <div className="flex-1 flex flex-col items-center justify-center gap-1 px-2">
             {cfg.mainText && (
-              <span
-                className="font-black text-center leading-tight"
-                style={{ color: cfg.mainColor, fontSize: cfg.mainText.includes('\n') ? 18 : 14, whiteSpace: 'pre-line', letterSpacing: 1 }}
-              >
+              <span className="font-black text-center leading-tight" style={{ color: cfg.mainColor, fontSize: cfg.mainText.includes('\n') ? 16 : 13, whiteSpace: 'pre-line', letterSpacing: 1 }}>
                 {cfg.mainText}
               </span>
             )}
             {cfg.subText && (
-              <span className="text-[8px] text-center mt-1" style={{ color: cfg.mainText === '' ? '#555' : '#888' }}>
-                {cfg.subText}
-              </span>
+              <span className="text-[8px] text-center mt-1" style={{ color: '#888' }}>{cfg.subText}</span>
             )}
           </div>
         </div>
       </div>
-      {/* Status LED */}
       <div className={`absolute rounded-full w-2 h-2 ${cfg.dot}`} style={{ top: 10, left: '50%', transform: 'translateX(-50%)' }} />
-      {/* Side buttons */}
       {[28, 50, 72].map((t) => (
         <div key={t} className="absolute right-1.5 w-2 h-5 rounded-full bg-gray-600" style={{ top: t }} />
       ))}
-      {/* USB-C */}
       <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-6 h-2 rounded-sm bg-gray-700" />
-      {/* Label */}
       <div className="absolute bottom-3 left-0 right-0 text-center">
         <span className="text-gray-500 font-bold" style={{ fontSize: 6, letterSpacing: 2 }}>BUMEET · E-INK</span>
       </div>
@@ -186,7 +220,7 @@ function EinkDoorDisplay({ mode }: { mode: DisplayMode }) {
 
 // ─── Contact form ─────────────────────────────────────────────────────────────
 
-function ContactForm() {
+function ContactForm({ t }: { t: typeof T['es'] }) {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -212,8 +246,8 @@ function ContactForm() {
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <IconCheck />
         </div>
-        <p className="text-lg font-semibold text-gray-900">¡Mensaje enviado!</p>
-        <p className="text-gray-500 text-sm">Te responderé lo antes posible.</p>
+        <p className="text-lg font-semibold text-gray-900">{t.formOkTitle}</p>
+        <p className="text-gray-500 text-sm">{t.formOkDesc}</p>
       </div>
     );
   }
@@ -222,118 +256,55 @@ function ContactForm() {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-          <input
-            required
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t.formName}</label>
+          <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Tu nombre"
-          />
+            placeholder={t.formNamePh} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input
-            required
-            type="email"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t.formEmail}</label>
+          <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="tu@email.com"
-          />
+            placeholder={t.formEmailPh} />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
-        <textarea
-          required
-          rows={4}
-          value={form.message}
-          onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t.formMsg}</label>
+        <textarea required rows={4} value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-          placeholder="¿En qué puedo ayudarte?"
-        />
+          placeholder={t.formMsgPh} />
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="self-start px-8 py-3 rounded-xl bg-brand font-semibold text-white text-sm hover:bg-brand-600 transition-colors disabled:opacity-60"
-      >
-        {loading ? 'Enviando…' : 'Enviar mensaje'}
+      <button type="submit" disabled={loading}
+        className="self-start px-8 py-3 rounded-xl bg-brand font-semibold text-white text-sm hover:bg-brand-600 transition-colors disabled:opacity-60">
+        {loading ? t.formSending : t.formSend}
       </button>
     </form>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Feature icons (ordered to match translation arrays) ─────────────────────
 
-const FEATURES = [
-  {
-    icon: <IconCamera />,
-    title: 'Detección automática',
-    desc: 'Detecta cuando tienes la cámara o el micrófono activos en macOS, Windows y Linux. Sin tocar nada.',
-  },
-  {
-    icon: <IconCalendar />,
-    title: 'Sincronización de calendario',
-    desc: 'Se conecta con Google Calendar y Microsoft Calendar para mostrar tus reuniones en tiempo real.',
-  },
-  {
-    icon: <IconSlack />,
-    title: 'Estado de Slack',
-    desc: 'Lee tu estado de llamada en Slack y actualiza la pantalla al instante.',
-  },
-  {
-    icon: <IconEdit />,
-    title: 'Mensaje personalizado',
-    desc: 'Pon cualquier mensaje desde tu ordenador: "No molestar", "Vuelvo en 10 min" o lo que necesites.',
-  },
-  {
-    icon: <IconBluetooth />,
-    title: 'Conexión inalámbrica',
-    desc: 'Comunicación por Bluetooth Low Energy. Sin cables, sin configuración de red.',
-  },
-  {
-    icon: <IconBattery />,
-    title: 'Meses de batería',
-    desc: 'La pantalla e-ink consume energía solo al cambiar. Una carga dura semanas o meses.',
-  },
-];
-
-const STEPS = [
-  {
-    n: '01',
-    title: 'Coloca la pantalla en la puerta',
-    desc: 'Fija el dispositivo en la puerta de tu habitación u oficina. Funciona con cualquier superficie.',
-  },
-  {
-    n: '02',
-    title: 'Instala el agente en tu ordenador',
-    desc: 'Descarga e instala la aplicación de fondo. Arranca sola al iniciar sesión y no necesita atención.',
-  },
-  {
-    n: '03',
-    title: 'Trabaja sin interrupciones',
-    desc: 'La pantalla se actualiza sola cuando entras en una reunión, una llamada o pones un mensaje manual.',
-  },
-];
-
-const RELEASES_BASE = 'https://github.com/bumeet/bumeet/releases/latest/download';
+const FEATURE_ICONS = [<IconCamera key="cam" />, <IconCalendar key="cal" />, <IconSlack key="slack" />, <IconEdit key="edit" />, <IconBluetooth key="bt" />, <IconBattery key="bat" />];
 
 const DOWNLOADS = [
-  { icon: <IconApple />, label: 'macOS', sub: 'Apple Silicon & Intel', href: `${RELEASES_BASE}/bumeet-agent-macos.zip` },
-  { icon: <IconWindows />, label: 'Windows', sub: '64-bit', href: `${RELEASES_BASE}/bumeet-agent-windows.exe` },
-  { icon: <IconLinux />, label: 'Linux', sub: 'x86_64', href: `${RELEASES_BASE}/bumeet-agent-linux` },
+  { icon: <IconApple />, label: 'macOS', sub: 'Apple Silicon & Intel', href: 'https://github.com/bumeet/bumeet/releases/latest/download/bumeet-agent-macos.zip' },
+  { icon: <IconWindows />, label: 'Windows', sub: '64-bit', href: 'https://github.com/bumeet/bumeet/releases/latest/download/bumeet-agent-windows.exe' },
+  { icon: <IconLinux />, label: 'Linux', sub: 'x86_64', href: 'https://github.com/bumeet/bumeet/releases/latest/download/bumeet-agent-linux' },
 ];
 
-const MODES: { key: DisplayMode; label: string }[] = [
-  { key: 'disponible', label: 'Disponible' },
-  { key: 'reunion', label: 'En reunión' },
-  { key: 'nomolestar', label: 'No molestar' },
-];
+const DISPLAY_MODES: DisplayMode[] = ['available', 'meeting', 'dnd'];
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const [mode, setMode] = useState<DisplayMode>('disponible');
+  const [lang, setLang] = useState<Lang>('es');
+  const [mode, setMode] = useState<DisplayMode>('available');
+  const t = T[lang];
+
+  const howId    = lang === 'es' ? 'como-funciona' : 'how-it-works';
+  const featId   = lang === 'es' ? 'caracteristicas' : 'features';
+  const dlId     = lang === 'es' ? 'descarga' : 'download';
+  const contId   = lang === 'es' ? 'contacto' : 'contact';
 
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased">
@@ -342,18 +313,28 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="text-xl font-bold tracking-tight" style={{ color: '#6C47FF' }}>BUMEET</span>
-          <nav className="hidden sm:flex items-center gap-8 text-sm text-gray-600">
-            <a href="#como-funciona" className="hover:text-gray-900 transition-colors">Cómo funciona</a>
-            <a href="#caracteristicas" className="hover:text-gray-900 transition-colors">Características</a>
-            <a href="#descarga" className="hover:text-gray-900 transition-colors">Descarga</a>
-            <a href="#contacto" className="hover:text-gray-900 transition-colors">Contacto</a>
+          <nav className="hidden sm:flex items-center gap-7 text-sm text-gray-600">
+            <a href={`#${howId}`} className="hover:text-gray-900 transition-colors">{t.nav.howItWorks}</a>
+            <a href={`#${featId}`} className="hover:text-gray-900 transition-colors">{t.nav.features}</a>
+            <a href={`#${dlId}`} className="hover:text-gray-900 transition-colors">{t.nav.download}</a>
+            <a href={`#${contId}`} className="hover:text-gray-900 transition-colors">{t.nav.contact}</a>
           </nav>
-          <Link
-            href="/login"
-            className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
-          >
-            Acceder
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Language toggle */}
+            <div className="flex items-center rounded-xl border border-gray-200 overflow-hidden text-xs font-semibold">
+              <button
+                onClick={() => setLang('es')}
+                className={`px-3 py-1.5 transition-colors ${lang === 'es' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              >ES</button>
+              <button
+                onClick={() => setLang('en')}
+                className={`px-3 py-1.5 transition-colors ${lang === 'en' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              >EN</button>
+            </div>
+            <Link href="/login" className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-600 transition-colors">
+              {t.nav.signin}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -362,70 +343,52 @@ export default function LandingPage() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 text-brand text-xs font-semibold mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-            Beta abierta
+            {t.badge}
           </div>
           <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight text-gray-900">
-            La puerta que<br />
-            <span style={{ color: '#6C47FF' }}>habla por ti</span>
+            {t.heroTitle[0]}<br />
+            <span style={{ color: '#6C47FF' }}>{t.heroTitle[1]}</span>
           </h1>
-          <p className="mt-6 text-lg text-gray-500 leading-relaxed max-w-lg">
-            BUMEET es una pantalla e-ink que se coloca en la puerta de tu habitación u oficina. Muestra automáticamente si estás disponible, en reunión o no quieres que te interrumpan — sin que tengas que hacer nada.
-          </p>
+          <p className="mt-6 text-lg text-gray-500 leading-relaxed max-w-lg">{t.heroDesc}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#descarga"
-              className="px-6 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-600 transition-colors flex items-center gap-2"
-            >
-              Descargar agente <IconArrow />
+            <a href={`#${dlId}`} className="px-6 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-600 transition-colors flex items-center gap-2">
+              {t.heroCta} <IconArrow />
             </a>
-            <a
-              href="#como-funciona"
-              className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-gray-50 transition-colors"
-            >
-              Ver cómo funciona
+            <a href={`#${howId}`} className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:border-gray-300 hover:bg-gray-50 transition-colors">
+              {t.heroSub}
             </a>
           </div>
         </div>
 
-        {/* Interactive device preview */}
+        {/* Interactive door preview */}
         <div className="flex flex-col items-center gap-6">
-          {/* Door context */}
-          <div className="relative flex items-center justify-center">
-            {/* Simplified door frame */}
-            <div className="relative rounded-lg border-4 border-gray-300 bg-amber-50 shadow-xl" style={{ width: 220, height: 280 }}>
-              {/* Door knob */}
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-500 shadow" />
-              {/* Device mounted on door */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <EinkDoorDisplay mode={mode} />
-              </div>
+          <div className="relative rounded-lg border-4 border-gray-300 bg-amber-50 shadow-xl" style={{ width: 220, height: 280 }}>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-500 shadow" />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <EinkDoorDisplay mode={mode} />
             </div>
           </div>
-          {/* Mode buttons */}
           <div className="flex items-center gap-2">
-            {MODES.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setMode(key)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${mode === key ? 'bg-gray-900 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-              >
-                {label}
+            {DISPLAY_MODES.map((key, i) => (
+              <button key={key} onClick={() => setMode(key)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${mode === key ? 'bg-gray-900 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                {t.modes[i]}
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400">Vista previa interactiva de la pantalla en la puerta</p>
+          <p className="text-xs text-gray-400">{t.previewCaption}</p>
         </div>
       </section>
 
       {/* ── How it works ── */}
-      <section id="como-funciona" className="bg-gray-50 py-24">
+      <section id={howId} className="bg-gray-50 py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-extrabold tracking-tight">Cómo funciona</h2>
-            <p className="mt-3 text-gray-500">Listo en minutos. Sin configuración técnica.</p>
+            <h2 className="text-3xl font-extrabold tracking-tight">{t.howTitle}</h2>
+            <p className="mt-3 text-gray-500">{t.howSub}</p>
           </div>
           <div className="grid sm:grid-cols-3 gap-8">
-            {STEPS.map(({ n, title, desc }) => (
+            {t.steps.map(({ n, title, desc }) => (
               <div key={n} className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                 <div className="text-4xl font-black mb-4" style={{ color: '#6C47FF', opacity: 0.15 }}>{n}</div>
                 <h3 className="text-lg font-bold mb-2">{title}</h3>
@@ -437,16 +400,16 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ── */}
-      <section id="caracteristicas" className="py-24 max-w-6xl mx-auto px-6">
+      <section id={featId} className="py-24 max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-extrabold tracking-tight">Todo lo que necesitas</h2>
-          <p className="mt-3 text-gray-500">Pensado para personas que necesitan concentrarse y no quieren interrupciones.</p>
+          <h2 className="text-3xl font-extrabold tracking-tight">{t.featTitle}</h2>
+          <p className="mt-3 text-gray-500">{t.featSub}</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {FEATURES.map(({ icon, title, desc }) => (
+          {t.features.map(({ title, desc }, i) => (
             <div key={title} className="group p-6 rounded-2xl border border-gray-100 hover:border-brand-100 hover:shadow-md transition-all">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: '#f0edff', color: '#6C47FF' }}>
-                {icon}
+                {FEATURE_ICONS[i]}
               </div>
               <h3 className="font-bold mb-1.5">{title}</h3>
               <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
@@ -456,19 +419,14 @@ export default function LandingPage() {
       </section>
 
       {/* ── Download ── */}
-      <section id="descarga" className="py-24" style={{ background: 'linear-gradient(135deg, #6C47FF 0%, #4826dd 100%)' }}>
+      <section id={dlId} className="py-24" style={{ background: 'linear-gradient(135deg, #6C47FF 0%, #4826dd 100%)' }}>
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-extrabold text-white tracking-tight">Descarga el agente BUMEET</h2>
-          <p className="mt-3 text-white/70 max-w-md mx-auto">
-            Se ejecuta en segundo plano y se comunica con la pantalla de tu puerta por Bluetooth. Sin consumo notable de recursos.
-          </p>
+          <h2 className="text-3xl font-extrabold text-white tracking-tight">{t.dlTitle}</h2>
+          <p className="mt-3 text-white/70 max-w-md mx-auto">{t.dlDesc}</p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             {DOWNLOADS.map(({ icon, label, sub, href }) => (
-              <a
-                key={label}
-                href={href}
-                className="group flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 transition-all text-left"
-              >
+              <a key={label} href={href}
+                className="group flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 transition-all text-left">
                 <div className="text-white">{icon}</div>
                 <div>
                   <div className="text-white font-bold text-sm">{label}</div>
@@ -477,27 +435,18 @@ export default function LandingPage() {
               </a>
             ))}
           </div>
-          <p className="mt-8 text-white/40 text-xs">
-            Requiere Bluetooth LE · Compatible con macOS 12+, Windows 10+ y Linux
-          </p>
+          <p className="mt-8 text-white/40 text-xs">{t.dlNote}</p>
         </div>
       </section>
 
       {/* ── Contact ── */}
-      <section id="contacto" className="py-24 max-w-6xl mx-auto px-6">
+      <section id={contId} className="py-24 max-w-6xl mx-auto px-6">
         <div className="grid lg:grid-cols-2 gap-16 items-start">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight">Contacto</h2>
-            <p className="mt-4 text-gray-500 leading-relaxed">
-              ¿Tienes preguntas sobre la configuración, quieres más información o tienes alguna propuesta? Escríbeme.
-            </p>
+            <h2 className="text-3xl font-extrabold tracking-tight">{t.contactTitle}</h2>
+            <p className="mt-4 text-gray-500 leading-relaxed">{t.contactDesc}</p>
             <ul className="mt-8 space-y-3">
-              {[
-                'Soporte para la configuración del hardware',
-                'Preguntas sobre integraciones',
-                'Sugerencias de mejora',
-                'Consultas comerciales o de distribución',
-              ].map(item => (
+              {t.contactItems.map(item => (
                 <li key={item} className="flex items-center gap-2 text-sm text-gray-600">
                   <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f0edff', color: '#6C47FF' }}>
                     <IconCheck />
@@ -508,7 +457,7 @@ export default function LandingPage() {
             </ul>
           </div>
           <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
-            <ContactForm />
+            <ContactForm t={t} />
           </div>
         </div>
       </section>
@@ -517,11 +466,11 @@ export default function LandingPage() {
       <footer className="border-t border-gray-100 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
           <span className="font-bold" style={{ color: '#6C47FF' }}>BUMEET</span>
-          <span>© {new Date().getFullYear()} Antonio Rodes · Todos los derechos reservados</span>
+          <span>© {new Date().getFullYear()} Antonio Rodes · {t.footerRights}</span>
           <nav className="flex gap-6">
-            <a href="#como-funciona" className="hover:text-gray-600 transition-colors">Cómo funciona</a>
-            <a href="#contacto" className="hover:text-gray-600 transition-colors">Contacto</a>
-            <Link href="/login" className="hover:text-gray-600 transition-colors">Acceder</Link>
+            <a href={`#${howId}`} className="hover:text-gray-600 transition-colors">{t.nav.howItWorks}</a>
+            <a href={`#${contId}`} className="hover:text-gray-600 transition-colors">{t.nav.contact}</a>
+            <Link href="/login" className="hover:text-gray-600 transition-colors">{t.nav.signin}</Link>
           </nav>
         </div>
       </footer>
