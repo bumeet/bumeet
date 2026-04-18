@@ -62,7 +62,9 @@ jobs:
       # ── Windows ────────────────────────────────────────────────────────────
       - name: Build (Windows)
         if: matrix.os == 'windows'
-        run: pyinstaller bumeet-agent.spec --name bumeet-agent-windows
+        run: |
+          pyinstaller bumeet-agent.spec
+          mv dist/bumeet-agent.exe dist/bumeet-agent-windows.exe
         shell: bash
 
       - name: Upload Windows artifact
@@ -77,7 +79,8 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get install -y libbluetooth-dev libdbus-1-dev
-          pyinstaller bumeet-agent.spec --name bumeet-agent-linux
+          pyinstaller bumeet-agent.spec
+          mv dist/bumeet-agent dist/bumeet-agent-linux
 
       - name: Upload Linux artifact
         if: matrix.os == 'linux'
