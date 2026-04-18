@@ -53,6 +53,7 @@ class AgentOrchestrator:
 		self._event_bus = event_bus
 		self._state_machine = state_machine
 		self._ble_client = ble_client
+		self._pending_send: asyncio.Task[None] | None = None
 
 	async def handle_snapshot(self, snapshot: HardwareSnapshot) -> None:
 		await self._event_bus.emit(
@@ -74,10 +75,16 @@ class AgentOrchestrator:
 			reason=transition.reason,
 		)
 
-		if transition.current_status is OccupancyStatus.BUSY:
-			await self._ble_client.send_state(PresenceState.BUSY)
-		else:
-			await self._ble_client.send_state(PresenceState.FREE)
+		state = PresenceState.BUSY if transition.current_status is OccupancyStatus.BUSY else PresenceState.FREE
+		payload = self._ble_client._settings.busy_payload.encode() if state is PresenceState.BUSY else self._ble_client._settings.free_payload.encode()
+
+		# Cancel any in-flight delivery — the new state supersedes it.
+		if self._pending_send and not self._pending_send.done():
+			self._pending_send.cancel()
+
+		self._pending_send = asyncio.create_task(
+			self._ble_client.send_when_available(payload)
+		)
 
 
 def build_simulation_steps(name: str = "default", delay_scale: float = 1.0) -> list[SimulationStep]:
