@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GoogleCalendarService } from './google-calendar.service';
 import { MicrosoftCalendarService } from './microsoft-calendar.service';
 import { SlackService } from './slack.service';
+import { TeamsService } from './teams.service';
 
 @Injectable()
 export class IntegrationsService {
@@ -11,6 +12,7 @@ export class IntegrationsService {
     private google: GoogleCalendarService,
     private microsoft: MicrosoftCalendarService,
     private slack: SlackService,
+    private teams: TeamsService,
   ) {}
 
   async getAll(userId: string) {
@@ -48,6 +50,18 @@ export class IntegrationsService {
     });
     if (!integration) throw new NotFoundException('Integration not found');
     return this.microsoft.getPresence(integrationId);
+  }
+
+  getTeamsAuthUrl(userId: string): string {
+    return this.teams.getAuthUrl(userId);
+  }
+
+  async getTeamsPresence(userId: string, integrationId: string) {
+    const integration = await this.prisma.integrationAccount.findFirst({
+      where: { id: integrationId, userId, provider: 'teams' },
+    });
+    if (!integration) throw new NotFoundException('Integration not found');
+    return this.teams.getPresence(integrationId);
   }
 
   getSlackAuthUrl(userId: string): string {

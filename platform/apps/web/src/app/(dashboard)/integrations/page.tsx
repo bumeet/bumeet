@@ -19,10 +19,12 @@ type Integration = {
 };
 
 type SlackPresence = { inCall: boolean; presence: string; status: string; emoji: string };
+type TeamsPresence = { inCall: boolean; availability: string; activity: string };
 
 const PROVIDERS = [
   { id: 'google', name: 'Google Calendar', description: 'Sync events from Google Calendar', emoji: '📅' },
   { id: 'microsoft', name: 'Microsoft Outlook', description: 'Sync events from Outlook calendar', emoji: '📆' },
+  { id: 'teams', name: 'Microsoft Teams', description: 'Detect Teams calls and meetings in real time', emoji: '🟦' },
   { id: 'slack', name: 'Slack', description: 'Detect calls and huddles in real time', emoji: '💬' },
 ];
 
@@ -35,6 +37,7 @@ export default function IntegrationsPage() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [slackPresence, setSlackPresence] = useState<Record<string, SlackPresence>>({});
+  const [teamsPresence, setTeamsPresence] = useState<Record<string, TeamsPresence>>({});
 
   const token = (session as any)?.apiToken;
   const searchParams = useSearchParams();
@@ -66,6 +69,14 @@ export default function IntegrationsPage() {
     } catch {}
   }, [token]);
 
+  const pollTeamsPresence = useCallback(async (integrationId: string) => {
+    if (!token) return;
+    try {
+      const p = await api.get<TeamsPresence>(`/integrations/${integrationId}/presence`, token);
+      if (p) setTeamsPresence((prev) => ({ ...prev, [integrationId]: p }));
+    } catch {}
+  }, [token]);
+
   // Poll Slack presence every 20s for all connected Slack accounts
   useEffect(() => {
     const slackAccounts = integrations.filter((i) => i.provider === 'slack' && i.status === 'active');
@@ -75,6 +86,16 @@ export default function IntegrationsPage() {
     const interval = setInterval(() => slackAccounts.forEach((a) => pollSlackPresence(a.id)), 1_000);
     return () => clearInterval(interval);
   }, [integrations, pollSlackPresence]);
+
+  // Poll Teams presence every 30s
+  useEffect(() => {
+    const teamsAccounts = integrations.filter((i) => i.provider === 'teams' && i.status === 'active');
+    if (!teamsAccounts.length) return;
+
+    teamsAccounts.forEach((a) => pollTeamsPresence(a.id));
+    const interval = setInterval(() => teamsAccounts.forEach((a) => pollTeamsPresence(a.id)), 30_000);
+    return () => clearInterval(interval);
+  }, [integrations, pollTeamsPresence]);
 
   const getAccounts = (provider: string) => integrations.filter((i) => i.provider === provider);
 
@@ -174,6 +195,7 @@ export default function IntegrationsPage() {
                   {accounts.map((integration) => {
                     const isError = integration.status === 'error';
                     const slack = provider.id === 'slack' ? slackPresence[integration.id] : null;
+                    const teams = provider.id === 'teams' ? teamsPresence[integration.id] : null;
                     const inMeeting =
                       (provider.id === 'google' || provider.id === 'microsoft') &&
                       calendarStatus.busy &&
@@ -201,6 +223,28 @@ export default function IntegrationsPage() {
                                 <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
                                   <Radio size={10} /> In meeting
                                 </span>
+                              )}
+                              {/* Teams live presence indicator */}
+                              {teams && (
+                                <>
+                                  <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                                    teams.availability === 'Available' ? 'text-green-700 bg-green-50' :
+                                    teams.availability === 'Busy' || teams.availability === 'DoNotDisturb' ? 'text-red-700 bg-red-50' :
+                                    'text-gray-400 bg-gray-100'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      teams.availability === 'Available' ? 'bg-green-500' :
+                                      teams.availability === 'Busy' || teams.availability === 'DoNotDisturb' ? 'bg-red-500' :
+                                      'bg-gray-400'
+                                    }`} />
+                                    {teams.availability}
+                                  </span>
+                                  {teams.inCall && (
+                                    <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
+                                      <Radio size={10} /> In Teams call
+                                    </span>
+                                  )}
+                                </>
                               )}
                               {/* Slack live presence + call indicator */}
                               {slack && (

@@ -25,6 +25,9 @@ export class IntegrationsController {
     if (provider === 'microsoft') {
       return { redirectUrl: this.integrations.getMicrosoftAuthUrl(req.user.id) };
     }
+    if (provider === 'teams') {
+      return { redirectUrl: this.integrations.getTeamsAuthUrl(req.user.id) };
+    }
     if (provider === 'slack') {
       return { redirectUrl: this.integrations.getSlackAuthUrl(req.user.id) };
     }
@@ -50,6 +53,9 @@ export class IntegrationsController {
 
     if (integration.provider === 'microsoft') {
       return this.integrations.getMicrosoftPresence(req.user.id, id);
+    }
+    if (integration.provider === 'teams') {
+      return this.integrations.getTeamsPresence(req.user.id, id);
     }
     if (integration.provider === 'slack') {
       return this.integrations.getSlackPresence(req.user.id, id);

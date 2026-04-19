@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleCalendarService } from '../integrations/google-calendar.service';
 import { MicrosoftCalendarService } from '../integrations/microsoft-calendar.service';
 import { SlackService } from '../integrations/slack.service';
+import { TeamsService } from '../integrations/teams.service';
 
 @Controller('auth')
 export class AuthController {
@@ -17,6 +18,7 @@ export class AuthController {
     private googleCalendar: GoogleCalendarService,
     private microsoftCalendar: MicrosoftCalendarService,
     private slack: SlackService,
+    private teams: TeamsService,
   ) {}
 
   @Post('oauth-login')
@@ -109,6 +111,24 @@ export class AuthController {
     } catch (err) {
       console.error('Slack OAuth callback error:', err);
       return res.redirect(`${frontendUrl}/integrations?error=slack_failed`);
+    }
+  }
+
+  @Get('teams/callback')
+  async teamsCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'http://localhost:3000';
+    if (error || !code) return res.redirect(`${frontendUrl}/integrations?error=teams_denied`);
+    try {
+      await this.teams.handleCallback(code, state);
+      return res.redirect(`${frontendUrl}/integrations?connected=teams`);
+    } catch (err) {
+      console.error('Teams OAuth callback error:', err);
+      return res.redirect(`${frontendUrl}/integrations?error=teams_failed`);
     }
   }
 

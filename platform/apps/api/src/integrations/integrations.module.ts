@@ -4,10 +4,11 @@ import { IntegrationsController } from './integrations.controller';
 import { GoogleCalendarService } from './google-calendar.service';
 import { MicrosoftCalendarService } from './microsoft-calendar.service';
 import { SlackService } from './slack.service';
+import { TeamsService } from './teams.service';
 
 @Module({
-  providers: [IntegrationsService, GoogleCalendarService, MicrosoftCalendarService, SlackService],
+  providers: [IntegrationsService, GoogleCalendarService, MicrosoftCalendarService, SlackService, TeamsService],
   controllers: [IntegrationsController],
-  exports: [IntegrationsService, GoogleCalendarService, MicrosoftCalendarService, SlackService],
+  exports: [IntegrationsService, GoogleCalendarService, MicrosoftCalendarService, SlackService, TeamsService],
 })
 export class IntegrationsModule {}
