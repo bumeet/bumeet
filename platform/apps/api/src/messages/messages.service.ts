@@ -57,7 +57,15 @@ export class MessagesService {
 
   async getLatestPending(userId: string) {
     return this.prisma.messageToDisplay.findFirst({
-      where: { userId, status: { in: ['pending', 'sent'] } },
+      where: {
+        userId,
+        status: { in: ['pending', 'sent'] },
+        // Exclude auto-status entries (BUSY/FREE) so the agent only picks up manual messages
+        NOT: [
+          { content: { startsWith: 'BUSY' } },
+          { content: { equals: 'FREE' } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
