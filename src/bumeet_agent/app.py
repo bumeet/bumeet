@@ -66,11 +66,14 @@ async def run(
         event_bus=container.event_bus,
         state_machine=container.state_machine,
         ble_client=container.ble_client,
+        api_settings=container.settings.api,
     )
     detector = _build_detector(poll_interval=container.settings.runtime.poll_interval_seconds)
 
     if container.settings.runtime.auto_connect_on_start and container.settings.ble.is_configured:
         await container.ble_client.connect()
+
+    await orchestrator.start_api_polling()
 
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -93,6 +96,7 @@ async def run(
             await asyncio.wait_for(detection_task, timeout=3.0)
         except (asyncio.TimeoutError, asyncio.CancelledError):
             detection_task.cancel()
+        await orchestrator.stop_api_polling()
         await container.event_bus.emit(EventTopic.APP_STOPPING.value)
         await container.ble_client.disconnect()
 

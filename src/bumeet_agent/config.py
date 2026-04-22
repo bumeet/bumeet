@@ -39,6 +39,18 @@ class RuntimeSettings(BaseModel):
 	poll_interval_seconds: float = Field(default=2.0, ge=0.25, le=60.0)
 
 
+class ApiSettings(BaseModel):
+	"""BUMEET cloud API settings for enriched busy payloads."""
+
+	url: str = "https://api.bumeet.es/api/v1"
+	token: str = ""
+	poll_interval_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
+
+	@property
+	def is_configured(self) -> bool:
+		return bool(self.token)
+
+
 class TelemetrySettings(BaseModel):
 	"""Telemetry flags reserved for later cloud integration."""
 
@@ -51,6 +63,7 @@ class AppSettings(BaseModel):
 
 	ble: BleSettings = Field(default_factory=BleSettings)
 	runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
+	api: ApiSettings = Field(default_factory=ApiSettings)
 	telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
 
 

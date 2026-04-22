@@ -43,4 +43,22 @@ export class MessagesService {
     if (!message) throw new NotFoundException('Message not found');
     return message;
   }
+
+  async markDelivered(userId: string, id: string) {
+    const message = await this.prisma.messageToDisplay.findFirst({
+      where: { id, userId },
+    });
+    if (!message) throw new NotFoundException('Message not found');
+    return this.prisma.messageToDisplay.update({
+      where: { id },
+      data: { status: 'delivered', deliveredAt: new Date(), sentAt: message.sentAt ?? new Date() },
+    });
+  }
+
+  async getLatestPending(userId: string) {
+    return this.prisma.messageToDisplay.findFirst({
+      where: { userId, status: { in: ['pending', 'sent'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

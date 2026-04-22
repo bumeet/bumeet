@@ -1,9 +1,13 @@
 /**
- * BUMEET – CoreInk BLE Status Display  (deep-sleep edition)
+ * BUMEET – CoreInk BLE Status Display  (always-on edition)
  *
- * Power cycle:
- *   boot/wake → advertise 20 s → deep sleep 10 min → repeat
- *   Average consumption: ~0.5 mAh/h → ~32 days on CoreInk 390 mAh battery
+ * The device advertises continuously and maintains a persistent BLE connection
+ * with the host agent. The agent pushes FREE/BUSY payloads in real time
+ * (e.g. 5 s before a meeting or when the mic opens).
+ *
+ * Power budget (estimated on 390 mAh battery):
+ *   BLE connected + light sleep: ~3–8 mA average → ~48–130 h
+ *   E-ink only draws power during a refresh (~50 mA for ~1 s)
  *
  * ─── BLE identifiers ─────────────────────────────────────────────────────────
  *   Device name:         BUMEET
@@ -30,23 +34,21 @@ static const char* SVC_UUID  = "a1b2c3d4-e5f6-7890-abcd-ef1234567891";
 static const char* CHAR_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567892";
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
-static const uint8_t  CPU_FREQ_MHZ      = 80;
-static const int8_t   BLE_TX_POWER      = ESP_PWR_LVL_N12;      // -12 dBm
-static const uint16_t ADV_INTERVAL_MIN  = 160;                   // × 0.625 ms = 100 ms
-static const uint16_t ADV_INTERVAL_MAX  = 160;
-static const uint32_t ADV_WINDOW_MS     = 20000;                 // advertise 20 s per wake
-static const uint64_t SLEEP_INTERVAL_US = 10ULL * 60 * 1000000; // sleep 10 min
-
-// ─── RTC memory (survives deep sleep, cleared on power-off) ───────────────────
-RTC_DATA_ATTR static char rtcMsg[65] = "";
-RTC_DATA_ATTR static bool rtcBooted  = false;
+static const uint8_t  CPU_FREQ_MHZ     = 80;
+static const int8_t   BLE_TX_POWER     = ESP_PWR_LVL_N12;  // -12 dBm, saves power
+// Advertising interval: 500 ms (saves power vs 100 ms, still connects quickly)
+static const uint16_t ADV_INTERVAL_MIN = 800;   // × 0.625 ms = 500 ms
+static const uint16_t ADV_INTERVAL_MAX = 800;
+// Connection interval requested: 500 ms (low power while connected)
+static const uint16_t CONN_INTERVAL_MIN = 400;  // × 1.25 ms = 500 ms
+static const uint16_t CONN_INTERVAL_MAX = 400;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static Preferences   gPrefs;
 static String        gCurrentMsg;
 static String        gPendingMsg;
-static volatile bool gNeedsRedraw = false;
-static uint32_t      gAdvStartMs  = 0;
+static volatile bool gNeedsRedraw  = false;
+static bool          gConnected    = false;
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 static int16_t centerX(const String& text, uint8_t sz) {
@@ -110,15 +112,24 @@ static void renderMessage(const String& msg) {
     if (hdr == "BUSY") renderBusy(src, ends); else renderFree();
 }
 
-// ─── Sleep ────────────────────────────────────────────────────────────────────
-static void goToSleep() {
-    NimBLEDevice::getAdvertising()->stop();
-    NimBLEDevice::deinit(true);
-    esp_sleep_enable_timer_wakeup(SLEEP_INTERVAL_US);
-    esp_deep_sleep_start();
-}
+// ─── BLE server callbacks ─────────────────────────────────────────────────────
+class ServerCallbacks : public NimBLEServerCallbacks {
+    void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
+        gConnected = true;
+        // Request low-power connection parameters
+        pServer->updateConnParams(connInfo.getConnHandle(),
+                                  CONN_INTERVAL_MIN, CONN_INTERVAL_MAX, 0, 100);
+        // Keep advertising so a second device can discover us (optional)
+        NimBLEDevice::getAdvertising()->start();
+    }
 
-// ─── BLE callback ─────────────────────────────────────────────────────────────
+    void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo&, int) override {
+        gConnected = false;
+        // Restart advertising immediately so the agent can reconnect
+        NimBLEDevice::getAdvertising()->start();
+    }
+};
+
 class WriteCallback : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* pC, NimBLEConnInfo&) override {
         std::string val = std::string(pC->getValue());
@@ -126,15 +137,12 @@ class WriteCallback : public NimBLECharacteristicCallbacks {
 
         String incoming(val.c_str());
         incoming.trim();
-        if (incoming == gCurrentMsg) return;   // no change — skip e-ink refresh
+        if (incoming == gCurrentMsg) return;  // no change — skip e-ink refresh
 
         gPendingMsg  = incoming;
         gNeedsRedraw = true;
-        gAdvStartMs  = millis();  // reset sleep timer on write
 
-        strncpy(rtcMsg, incoming.c_str(), 64);
-        rtcMsg[64] = '\0';
-
+        // Persist so we survive a power cycle
         gPrefs.begin("bumeet", false);
         gPrefs.putString("msg", incoming);
         gPrefs.end();
@@ -149,24 +157,19 @@ void setup() {
     M5.begin(cfg);
     M5.Display.setRotation(0);
 
-    if (!rtcBooted) {
-        // First power-on: restore from NVS and render
-        rtcBooted = true;
-        gPrefs.begin("bumeet", true);
-        gCurrentMsg = gPrefs.getString("msg", "FREE");
-        gPrefs.end();
-        strncpy(rtcMsg, gCurrentMsg.c_str(), 64);
-        renderMessage(gCurrentMsg);
-    } else {
-        // Wake from deep sleep: e-ink panel already shows correct content
-        gCurrentMsg = String(rtcMsg);
-    }
+    // Restore last known state from NVS
+    gPrefs.begin("bumeet", true);
+    gCurrentMsg = gPrefs.getString("msg", "FREE");
+    gPrefs.end();
+    renderMessage(gCurrentMsg);
 
     // ── NimBLE GATT server ────────────────────────────────────────────────────
     NimBLEDevice::init("BUMEET");
     NimBLEDevice::setPower(BLE_TX_POWER);
 
     NimBLEServer*         pSrv  = NimBLEDevice::createServer();
+    pSrv->setCallbacks(new ServerCallbacks());
+
     NimBLEService*        pSvc  = pSrv->createService(SVC_UUID);
     NimBLECharacteristic* pChar = pSvc->createCharacteristic(
         CHAR_UUID,
@@ -177,11 +180,10 @@ void setup() {
 
     NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
     pAdv->addServiceUUID(SVC_UUID);
+    pAdv->setName("BUMEET");
     pAdv->setMinInterval(ADV_INTERVAL_MIN);
     pAdv->setMaxInterval(ADV_INTERVAL_MAX);
     pAdv->start();
-
-    gAdvStartMs = millis();
 }
 
 // ─── Loop ─────────────────────────────────────────────────────────────────────
@@ -192,9 +194,6 @@ void loop() {
         renderMessage(gCurrentMsg);
     }
 
-    if (millis() - gAdvStartMs > ADV_WINDOW_MS) {
-        goToSleep();
-    }
-
-    delay(100);
+    // Light sleep between iterations — keeps BLE alive, saves CPU power
+    delay(50);
 }
