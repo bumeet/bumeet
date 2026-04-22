@@ -329,11 +329,16 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [battery, setBattery] = useState<{ level: number | null; updatedAt: string | null }>({ level: null, updatedAt: null });
+  const [liveStatus, setLiveStatus] = useState<{ busy: boolean; payload: string; source: string | null; endAt: string | null } | null>(null);
 
   const token = (session as any)?.apiToken;
 
+  // Device preview: typed content > live status > last delivered message > FREE
+  const liveMessage: Message | null = liveStatus
+    ? { id: 'live', content: liveStatus.payload, status: 'delivered', sentAt: null, deliveredAt: null, errorMsg: null, createdAt: new Date().toISOString() }
+    : null;
   const lastDelivered = messages.find((m) => m.status === 'delivered');
-  const displayMessage: Message = lastDelivered ?? {
+  const displayMessage: Message = liveMessage ?? lastDelivered ?? {
     id: 'default-free',
     content: 'FREE',
     status: 'delivered',
@@ -342,8 +347,6 @@ export default function MessagesPage() {
     errorMsg: null,
     createdAt: new Date().toISOString(),
   };
-
-  // Live preview: use typed content if non-empty, else last delivered
   const previewMessage: Message = content.trim()
     ? { ...displayMessage, id: 'preview', content: content.trim() }
     : displayMessage;
@@ -357,7 +360,14 @@ export default function MessagesPage() {
         .then(setBattery).catch(() => {});
     fetchBattery();
     const battInterval = setInterval(fetchBattery, 60_000);
-    return () => clearInterval(battInterval);
+
+    const fetchLiveStatus = () =>
+      api.get<{ busy: boolean; payload: string; source: string | null; endAt: string | null }>('/integrations/live-status', token)
+        .then(setLiveStatus).catch(() => {});
+    fetchLiveStatus();
+    const statusInterval = setInterval(fetchLiveStatus, 10_000);
+
+    return () => { clearInterval(battInterval); clearInterval(statusInterval); };
   }, [token]);
 
   const handleSend = async () => {
@@ -412,10 +422,19 @@ export default function MessagesPage() {
                 <BatteryIndicator level={battery.level} updatedAt={battery.updatedAt} />
               </div>
               <CoreInkDevice message={previewMessage} />
-              {content.trim() && (
+              {content.trim() ? (
                 <p className="text-xs text-gray-400 mt-2 text-center">
                   Preview — not yet sent to device
                 </p>
+              ) : liveStatus && (
+                <div className={cn(
+                  'mt-2 flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium',
+                  liveStatus.busy ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600',
+                )}>
+                  <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', liveStatus.busy ? 'bg-red-500' : 'bg-green-500')} />
+                  {liveStatus.busy ? `Busy · ${liveStatus.source ?? ''}` : 'Free'}
+                  <span className="text-gray-400 ml-1">· live</span>
+                </div>
               )}
             </div>
           </div>

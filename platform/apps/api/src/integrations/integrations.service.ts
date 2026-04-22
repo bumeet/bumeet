@@ -1,12 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleCalendarService } from './google-calendar.service';
 import { MicrosoftCalendarService } from './microsoft-calendar.service';
 import { SlackService } from './slack.service';
 import { TeamsService } from './teams.service';
 
+export interface LiveStatus {
+  busy: boolean;
+  payload: string;       // ready to send to CoreInk
+  source: string | null;
+  endAt: string | null;
+}
+
 @Injectable()
-export class IntegrationsService {
+export class IntegrationsService implements OnModuleInit {
+  private readonly logger = new Logger(IntegrationsService.name);
+
   constructor(
     private prisma: PrismaService,
     private google: GoogleCalendarService,
@@ -14,6 +23,92 @@ export class IntegrationsService {
     private slack: SlackService,
     private teams: TeamsService,
   ) {}
+
+  // ── Auto-sync calendars every 15 min ──────────────────────────────────────
+  onModuleInit() {
+    const INTERVAL = 15 * 60 * 1000;
+    setInterval(() => this.syncAllCalendars(), INTERVAL);
+    // Initial sync after 30 s to avoid slowing down startup
+    setTimeout(() => this.syncAllCalendars(), 30_000);
+  }
+
+  private async syncAllCalendars() {
+    try {
+      const integrations = await this.prisma.integrationAccount.findMany({
+        where: { provider: { in: ['google', 'microsoft'] }, status: 'active' },
+      });
+      await Promise.allSettled(
+        integrations.map((i) =>
+          i.provider === 'google'
+            ? this.google.syncEvents(i.id)
+            : this.microsoft.syncEvents(i.id),
+        ),
+      );
+      this.logger.log(`Auto-synced ${integrations.length} calendar integration(s)`);
+    } catch (e) {
+      this.logger.warn(`Auto-sync error: ${e}`);
+    }
+  }
+
+  // ── Unified live status (Slack + Teams + Calendar) ─────────────────────────
+  async getLiveStatus(userId: string): Promise<LiveStatus> {
+    const integrations = await this.getAll(userId);
+
+    const slackIntegrations   = integrations.filter((i) => i.provider === 'slack');
+    const teamsIntegrations   = integrations.filter((i) => i.provider === 'teams');
+    const msIntegrations      = integrations.filter((i) => i.provider === 'microsoft');
+
+    const [calendarResult, ...presenceResults] = await Promise.allSettled([
+      this.getBusyStatus(userId),
+      ...slackIntegrations.map((i) =>
+        this.slack.getPresence(i.id).then((p) => ({ ...p, _provider: 'slack' })),
+      ),
+      ...teamsIntegrations.map((i) =>
+        this.teams.getPresence(i.id).then((p) => ({ ...p, _provider: 'teams' })),
+      ),
+      ...msIntegrations.map((i) =>
+        this.microsoft.getPresence(i.id).then((p) => ({ ...p, _provider: 'microsoft' })),
+      ),
+    ]);
+
+    // Priority 1: any inCall (Slack / Teams / Microsoft)
+    for (const r of presenceResults) {
+      if (r.status === 'fulfilled' && r.value?.inCall) {
+        const src = r.value._provider === 'slack' ? 'Slack' : 'Teams';
+        return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+      }
+    }
+
+    // Priority 2: Teams/Microsoft Busy or DoNotDisturb availability
+    for (const r of presenceResults) {
+      if (
+        r.status === 'fulfilled' &&
+        ['Busy', 'DoNotDisturb'].includes(r.value?.availability ?? '')
+      ) {
+        const src = r.value._provider === 'slack' ? 'Slack' : 'Teams';
+        return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+      }
+    }
+
+    // Priority 3: Calendar event
+    if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
+      const cal = calendarResult.value;
+      const src = (cal.source ?? '').replace('google', 'Google Calendar').replace('microsoft', 'Outlook');
+      let endStr = '';
+      if (cal.endAt) {
+        try {
+          const dt = new Date(cal.endAt);
+          endStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+        } catch { /* ignore */ }
+      }
+      const payload = src && endStr
+        ? `BUSY · ${src} · ends ${endStr}`
+        : src ? `BUSY · ${src}` : 'BUSY';
+      return { busy: true, payload, source: cal.source, endAt: cal.endAt };
+    }
+
+    return { busy: false, payload: 'FREE', source: null, endAt: null };
+  }
 
   async getAll(userId: string) {
     return this.prisma.integrationAccount.findMany({

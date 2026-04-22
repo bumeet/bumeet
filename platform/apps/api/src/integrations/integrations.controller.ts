@@ -17,6 +17,11 @@ export class IntegrationsController {
     return this.integrations.getBusyStatus(req.user.id);
   }
 
+  @Get('live-status')
+  getLiveStatus(@Req() req: any) {
+    return this.integrations.getLiveStatus(req.user.id);
+  }
+
   @Post('connect/:provider')
   connect(@Req() req: any, @Param('provider') provider: string) {
     if (provider === 'google') {
