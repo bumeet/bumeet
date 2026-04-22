@@ -26,10 +26,8 @@ export class IntegrationsService implements OnModuleInit {
 
   // ── Auto-sync calendars every 15 min ──────────────────────────────────────
   onModuleInit() {
-    const INTERVAL = 15 * 60 * 1000;
-    setInterval(() => this.syncAllCalendars(), INTERVAL);
-    // Initial sync after 30 s to avoid slowing down startup
-    setTimeout(() => this.syncAllCalendars(), 30_000);
+    setInterval(() => this.syncAllCalendars(), 60_000);  // every 60 s
+    setTimeout(() => this.syncAllCalendars(), 5_000);    // initial sync 5 s after boot
   }
 
   private async syncAllCalendars() {

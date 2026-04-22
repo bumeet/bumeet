@@ -365,7 +365,7 @@ export default function MessagesPage() {
       api.get<{ busy: boolean; payload: string; source: string | null; endAt: string | null }>('/integrations/live-status', token)
         .then(setLiveStatus).catch(() => {});
     fetchLiveStatus();
-    const statusInterval = setInterval(fetchLiveStatus, 10_000);
+    const statusInterval = setInterval(fetchLiveStatus, 5_000);
 
     return () => { clearInterval(battInterval); clearInterval(statusInterval); };
   }, [token]);
