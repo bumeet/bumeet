@@ -1,22 +1,31 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface BatteryStatus {
-  level: number;      // 0-100
-  updatedAt: string;  // ISO timestamp
+  level: number;
+  updatedAt: string;
 }
 
 @Injectable()
 export class DeviceService {
-  private readonly battery = new Map<string, BatteryStatus>();
+  constructor(private prisma: PrismaService) {}
 
-  updateBattery(userId: string, level: number) {
+  async updateBattery(userId: string, level: number): Promise<BatteryStatus> {
     const clamped = Math.max(0, Math.min(100, Math.round(level)));
-    const status: BatteryStatus = { level: clamped, updatedAt: new Date().toISOString() };
-    this.battery.set(userId, status);
-    return status;
+    const now = new Date();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { batteryLevel: clamped, batteryUpdatedAt: now },
+    });
+    return { level: clamped, updatedAt: now.toISOString() };
   }
 
-  getBattery(userId: string): BatteryStatus | null {
-    return this.battery.get(userId) ?? null;
+  async getBattery(userId: string): Promise<BatteryStatus | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { batteryLevel: true, batteryUpdatedAt: true },
+    });
+    if (!user?.batteryLevel || !user.batteryUpdatedAt) return null;
+    return { level: user.batteryLevel, updatedAt: user.batteryUpdatedAt.toISOString() };
   }
 }

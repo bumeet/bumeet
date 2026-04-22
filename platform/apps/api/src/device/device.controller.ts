@@ -16,12 +16,12 @@ export class DeviceController {
   constructor(private device: DeviceService) {}
 
   @Patch('battery')
-  updateBattery(@Req() req: any, @Body() dto: BatteryDto): BatteryStatus {
+  async updateBattery(@Req() req: any, @Body() dto: BatteryDto): Promise<BatteryStatus> {
     return this.device.updateBattery(req.user.id, dto.level);
   }
 
   @Get('battery')
-  getBattery(@Req() req: any): BatteryStatus | { level: null; updatedAt: null } {
-    return this.device.getBattery(req.user.id) ?? { level: null, updatedAt: null };
+  async getBattery(@Req() req: any): Promise<BatteryStatus | { level: null; updatedAt: null }> {
+    return (await this.device.getBattery(req.user.id)) ?? { level: null, updatedAt: null };
   }
 }
