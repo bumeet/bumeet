@@ -1,6 +1,6 @@
 import { Controller, Get, Patch, Body, Req, UseGuards } from '@nestjs/common';
 import { IsInt, Min, Max } from 'class-validator';
-import { DeviceService } from './device.service';
+import { DeviceService, BatteryStatus } from './device.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 class BatteryDto {
@@ -16,12 +16,12 @@ export class DeviceController {
   constructor(private device: DeviceService) {}
 
   @Patch('battery')
-  updateBattery(@Req() req: any, @Body() dto: BatteryDto) {
+  updateBattery(@Req() req: any, @Body() dto: BatteryDto): BatteryStatus {
     return this.device.updateBattery(req.user.id, dto.level);
   }
 
   @Get('battery')
-  getBattery(@Req() req: any) {
+  getBattery(@Req() req: any): BatteryStatus | { level: null; updatedAt: null } {
     return this.device.getBattery(req.user.id) ?? { level: null, updatedAt: null };
   }
 }

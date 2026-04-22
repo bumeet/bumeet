@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-interface BatteryStatus {
+export interface BatteryStatus {
   level: number;      // 0-100
   updatedAt: string;  // ISO timestamp
 }
