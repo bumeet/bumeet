@@ -130,6 +130,7 @@ class WriteCallback : public NimBLECharacteristicCallbacks {
 
         gPendingMsg  = incoming;
         gNeedsRedraw = true;
+        gAdvStartMs  = millis();  // reset sleep timer on write
 
         strncpy(rtcMsg, incoming.c_str(), 64);
         rtcMsg[64] = '\0';
