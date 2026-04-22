@@ -45,14 +45,13 @@ static const uint16_t CONN_INTERVAL_MIN = 400;  // × 1.25 ms = 500 ms
 static const uint16_t CONN_INTERVAL_MAX = 400;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
-static Preferences          gPrefs;
-static String               gCurrentMsg;
-static String               gPendingMsg;
-static volatile bool        gNeedsRedraw   = false;
-static bool                 gConnected     = false;
-static NimBLECharacteristic* pBattChar     = nullptr;
-static unsigned long         gLastBattMs   = 0;
-static const uint32_t        BATT_INTERVAL = 60000UL;  // update every 60 s
+static Preferences           gPrefs;
+static String                gCurrentMsg;
+static String                gPendingMsg;
+static volatile bool         gNeedsRedraw = false;
+static bool                  gConnected   = false;
+static NimBLECharacteristic* pBattChar    = nullptr;
+static unsigned long         gLastBattMs  = 0;
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 static int16_t centerX(const String& text, uint8_t sz) {
@@ -181,12 +180,9 @@ void setup() {
     );
     pChar->setCallbacks(new WriteCallback());
 
-    // Battery level: readable and notifiable (0–100 as single byte)
-    pBattChar = pSvc->createCharacteristic(
-        BATT_UUID,
-        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
-    );
-    uint8_t initBatt = (uint8_t)M5.Power.getBatteryLevel();
+    // Battery: READ-only, single byte 0–100. Updated every 60 s in loop().
+    pBattChar = pSvc->createCharacteristic(BATT_UUID, NIMBLE_PROPERTY::READ);
+    uint8_t initBatt = 50;
     pBattChar->setValue(&initBatt, 1);
 
     pSvc->start();
@@ -207,12 +203,14 @@ void loop() {
         renderMessage(gCurrentMsg);
     }
 
-    // Push battery level every 60 s (notify if connected, just update value otherwise)
-    if (pBattChar && (millis() - gLastBattMs >= BATT_INTERVAL)) {
+    // Update battery level every 60 s (READ-only, agent polls it)
+    if (pBattChar && millis() - gLastBattMs >= 60000UL) {
         gLastBattMs = millis();
-        uint8_t batt = (uint8_t)M5.Power.getBatteryLevel();
-        pBattChar->setValue(&batt, 1);
-        if (gConnected) pBattChar->notify();
+        int lvl = M5.Power.getBatteryLevel();
+        if (lvl >= 0) {
+            uint8_t b = (uint8_t)lvl;
+            pBattChar->setValue(&b, 1);
+        }
     }
 
     // Light sleep between iterations — keeps BLE alive, saves CPU power

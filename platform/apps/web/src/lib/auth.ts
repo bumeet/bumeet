@@ -54,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     MicrosoftEntraID({
       clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID || process.env.MICROSOFT_CLIENT_ID!,
       clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET || process.env.MICROSOFT_CLIENT_SECRET!,
-      tenantId: 'common',
+      // issuer defaults to https://login.microsoftonline.com/common/v2.0/ — allows any MS account
       authorization: {
         params: { scope: 'openid profile email' },
       },
