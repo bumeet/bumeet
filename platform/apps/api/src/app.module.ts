@@ -8,6 +8,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { MessagesModule } from './messages/messages.module';
 import { AgentModule } from './agent/agent.module';
+import { DeviceModule } from './device/device.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AgentModule } from './agent/agent.module';
     CalendarModule,
     MessagesModule,
     AgentModule,
+    DeviceModule,
   ],
 })
 export class AppModule {}

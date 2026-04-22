@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -37,6 +37,28 @@ function parseMessageMeta(content: string) {
   const endTime = endPart ? endPart.replace('ends ', '') : null;
   const source = sourcePart?.replace(/ \+ .+/, '') ?? null;
   return { label, isBusy: label === 'BUSY', isFree: label === 'FREE', source, endTime };
+}
+
+// ─── Battery indicator ────────────────────────────────────────────────────────
+
+function BatteryIndicator({ level, updatedAt }: { level: number | null; updatedAt: string | null }) {
+  if (level === null) return null;
+
+  const Icon = level <= 15 ? BatteryLow : level <= 40 ? BatteryMedium : BatteryFull;
+  const color = level <= 15 ? 'text-red-500' : level <= 40 ? 'text-yellow-500' : 'text-green-500';
+  const bgColor = level <= 15 ? 'bg-red-50 border-red-100' : level <= 40 ? 'bg-yellow-50 border-yellow-100' : 'bg-green-50 border-green-100';
+
+  return (
+    <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs', bgColor)}>
+      <Icon size={13} className={color} />
+      <span className={cn('font-semibold tabular-nums', color)}>{level}%</span>
+      {updatedAt && (
+        <span className="text-gray-400 hidden sm:inline">
+          · {new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ─── M5Stack CoreInk device illustration ──────────────────────────────────────
@@ -306,6 +328,7 @@ export default function MessagesPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [battery, setBattery] = useState<{ level: number | null; updatedAt: string | null }>({ level: null, updatedAt: null });
 
   const token = (session as any)?.apiToken;
 
@@ -328,6 +351,13 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     api.get<Message[]>('/messages', token).then(setMessages).finally(() => setLoading(false));
+
+    const fetchBattery = () =>
+      api.get<{ level: number | null; updatedAt: string | null }>('/device/battery', token)
+        .then(setBattery).catch(() => {});
+    fetchBattery();
+    const battInterval = setInterval(fetchBattery, 60_000);
+    return () => clearInterval(battInterval);
   }, [token]);
 
   const handleSend = async () => {
@@ -374,9 +404,12 @@ export default function MessagesPage() {
           {/* ── Left: Device preview ── */}
           <div className="col-span-4">
             <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center gap-2 sticky top-6">
-              <div className="flex items-center gap-2 mb-4 self-start">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Live preview</span>
+              <div className="flex items-center justify-between mb-4 w-full">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Live preview</span>
+                </div>
+                <BatteryIndicator level={battery.level} updatedAt={battery.updatedAt} />
               </div>
               <CoreInkDevice message={previewMessage} />
               {content.trim() && (

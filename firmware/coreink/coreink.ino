@@ -32,6 +32,7 @@
 // ─── BLE identifiers ──────────────────────────────────────────────────────────
 static const char* SVC_UUID  = "a1b2c3d4-e5f6-7890-abcd-ef1234567891";
 static const char* CHAR_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567892";
+static const char* BATT_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567893";
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 static const uint8_t  CPU_FREQ_MHZ     = 80;
@@ -44,11 +45,14 @@ static const uint16_t CONN_INTERVAL_MIN = 400;  // × 1.25 ms = 500 ms
 static const uint16_t CONN_INTERVAL_MAX = 400;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
-static Preferences   gPrefs;
-static String        gCurrentMsg;
-static String        gPendingMsg;
-static volatile bool gNeedsRedraw  = false;
-static bool          gConnected    = false;
+static Preferences          gPrefs;
+static String               gCurrentMsg;
+static String               gPendingMsg;
+static volatile bool        gNeedsRedraw   = false;
+static bool                 gConnected     = false;
+static NimBLECharacteristic* pBattChar     = nullptr;
+static unsigned long         gLastBattMs   = 0;
+static const uint32_t        BATT_INTERVAL = 60000UL;  // update every 60 s
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 static int16_t centerX(const String& text, uint8_t sz) {
@@ -176,6 +180,15 @@ void setup() {
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
     );
     pChar->setCallbacks(new WriteCallback());
+
+    // Battery level: readable and notifiable (0–100 as single byte)
+    pBattChar = pSvc->createCharacteristic(
+        BATT_UUID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+    );
+    uint8_t initBatt = (uint8_t)M5.Power.getBatteryLevel();
+    pBattChar->setValue(&initBatt, 1);
+
     pSvc->start();
 
     NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
@@ -192,6 +205,14 @@ void loop() {
         gNeedsRedraw = false;
         gCurrentMsg  = gPendingMsg;
         renderMessage(gCurrentMsg);
+    }
+
+    // Push battery level every 60 s (notify if connected, just update value otherwise)
+    if (pBattChar && (millis() - gLastBattMs >= BATT_INTERVAL)) {
+        gLastBattMs = millis();
+        uint8_t batt = (uint8_t)M5.Power.getBatteryLevel();
+        pBattChar->setValue(&batt, 1);
+        if (gConnected) pBattChar->notify();
     }
 
     // Light sleep between iterations — keeps BLE alive, saves CPU power
