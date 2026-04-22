@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Patch, Param, Body, Req, UseGuards } from '@nestjs/common';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength, IsBoolean, IsOptional } from 'class-validator';
 import { MessagesService } from './messages.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,6 +8,10 @@ class CreateMessageDto {
   @MinLength(1)
   @MaxLength(200)
   content: string;
+
+  @IsOptional()
+  @IsBoolean()
+  permanent?: boolean;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -22,7 +26,7 @@ export class MessagesController {
 
   @Post()
   create(@Req() req: any, @Body() dto: CreateMessageDto) {
-    return this.messages.create(req.user.id, dto.content);
+    return this.messages.create(req.user.id, dto.content, dto.permanent);
   }
 
   @Get('latest-pending')
@@ -38,5 +42,10 @@ export class MessagesController {
   @Patch(':id/deliver')
   markDelivered(@Req() req: any, @Param('id') id: string) {
     return this.messages.markDelivered(req.user.id, id);
+  }
+
+  @Patch(':id/cancel')
+  cancelMessage(@Req() req: any, @Param('id') id: string) {
+    return this.messages.cancelMessage(req.user.id, id);
   }
 }

@@ -86,6 +86,7 @@ model MessageToDisplay {
   userId      String
   content     String    @db.VarChar(200)
   status      String    @default("pending")
+  permanent   Boolean   @default(false)
   sentAt      DateTime?
   deliveredAt DateTime?
   errorMsg    String?

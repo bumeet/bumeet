@@ -7,6 +7,7 @@ import { TeamsService } from './teams.service';
 
 export interface LiveStatus {
   busy: boolean;
+  upcoming: boolean;     // true = meeting starts within 5 min but hasn't started yet
   payload: string;       // ready to send to CoreInk
   source: string | null;
   endAt: string | null;
@@ -55,6 +56,7 @@ export class IntegrationsService implements OnModuleInit {
     const slackIntegrations   = integrations.filter((i) => i.provider === 'slack');
     const teamsIntegrations   = integrations.filter((i) => i.provider === 'teams');
     const msIntegrations      = integrations.filter((i) => i.provider === 'microsoft');
+    const hasPresence = slackIntegrations.length + teamsIntegrations.length + msIntegrations.length > 0;
 
     const [calendarResult, ...presenceResults] = await Promise.allSettled([
       this.getBusyStatus(userId),
@@ -75,7 +77,7 @@ export class IntegrationsService implements OnModuleInit {
         const v = r.value as any;
         if (v?.inCall) {
           const src = v._provider === 'slack' ? 'Slack' : 'Teams';
-          return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+          return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
         }
       }
     }
@@ -86,7 +88,7 @@ export class IntegrationsService implements OnModuleInit {
         const v = r.value as any;
         if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
           const src = v._provider === 'slack' ? 'Slack' : 'Teams';
-          return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+          return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
         }
       }
     }
@@ -95,6 +97,30 @@ export class IntegrationsService implements OnModuleInit {
     if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
       const cal = calendarResult.value;
       const src = (cal.source ?? '').replace('google', 'Google Calendar').replace('microsoft', 'Outlook');
+
+      // S-02: If the meeting is active (not just upcoming) but all connected presence integrations
+      // report Available, trust presence — user likely finished early
+      if (!cal.upcoming && hasPresence) {
+        const allAvailable = presenceResults.every((r) => {
+          if (r.status !== 'fulfilled') return true; // network error → don't block calendar
+          const v = r.value as any;
+          return !v?.inCall && !['Busy', 'DoNotDisturb'].includes(v?.availability ?? '');
+        });
+        if (allAvailable) {
+          return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
+        }
+      }
+
+      // S-01: Upcoming meeting (starts within next 5 min)
+      if (cal.upcoming && cal.startAt) {
+        try {
+          const dt = new Date(cal.startAt);
+          const startStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+          const payload = src ? `UPCOMING · ${src} · starts ${startStr}` : `UPCOMING · starts ${startStr}`;
+          return { busy: false, upcoming: true, payload, source: cal.source, endAt: null };
+        } catch { /* ignore */ }
+      }
+
       let endStr = '';
       if (cal.endAt) {
         try {
@@ -105,10 +131,10 @@ export class IntegrationsService implements OnModuleInit {
       const payload = src && endStr
         ? `BUSY · ${src} · ends ${endStr}`
         : src ? `BUSY · ${src}` : 'BUSY';
-      return { busy: true, payload, source: cal.source, endAt: cal.endAt };
+      return { busy: true, upcoming: false, payload, source: cal.source, endAt: cal.endAt };
     }
 
-    return { busy: false, payload: 'FREE', source: null, endAt: null };
+    return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
   }
 
   async getAll(userId: string) {
@@ -172,30 +198,35 @@ export class IntegrationsService implements OnModuleInit {
     return this.slack.getPresence(integrationId);
   }
 
-  /** Returns whether the user has an active calendar event right now. */
-  async getBusyStatus(userId: string): Promise<{ busy: boolean; reason: string | null; source: string | null; endAt: string | null }> {
+  /** Returns whether the user has an active or upcoming (≤5 min) calendar event. */
+  async getBusyStatus(userId: string): Promise<{ busy: boolean; upcoming: boolean; reason: string | null; source: string | null; endAt: string | null; startAt: string | null }> {
     const now = new Date();
+    const lookahead = new Date(now.getTime() + 5 * 60 * 1000); // S-01: 5-min pre-meeting window
     const event = await this.prisma.calendarEvent.findFirst({
       where: {
         userId,
-        startAt: { lte: now },
+        allDay: false,          // S-04: skip all-day events (out-of-office, holidays, etc.)
+        startAt: { lte: lookahead },
         endAt: { gt: now },
         status: 'confirmed',
       },
       include: { integration: { select: { provider: true } } },
-      orderBy: { startAt: 'desc' },
+      orderBy: { startAt: 'asc' }, // nearest event first
     });
 
     if (event) {
+      const upcoming = event.startAt > now; // S-01: true = meeting hasn't started yet
       return {
         busy: true,
+        upcoming,
         reason: event.title,
         source: event.integration.provider,
         endAt: event.endAt.toISOString(),
+        startAt: event.startAt.toISOString(),
       };
     }
 
-    return { busy: false, reason: null, source: null, endAt: null };
+    return { busy: false, upcoming: false, reason: null, source: null, endAt: null, startAt: null };
   }
 
   async disconnect(userId: string, integrationId: string) {

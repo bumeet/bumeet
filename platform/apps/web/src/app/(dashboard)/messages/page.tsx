@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging, Pin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -13,6 +13,7 @@ type Message = {
   id: string;
   content: string;
   status: string;
+  permanent: boolean;
   sentAt: string | null;
   deliveredAt: string | null;
   errorMsg: string | null;
@@ -28,15 +29,25 @@ const SOURCE_ICONS: Record<string, string> = {
 };
 
 function parseMessageMeta(content: string) {
-  if (!content.startsWith('BUSY') && content !== 'FREE')
-    return { label: content, isBusy: false, isFree: false, source: null, endTime: null };
+  if (!content.startsWith('BUSY') && !content.startsWith('UPCOMING') && content !== 'FREE')
+    return { label: content, isBusy: false, isFree: false, isUpcoming: false, source: null, endTime: null, startTime: null };
   const parts = content.split(' · ');
   const label = parts[0];
   const sourcePart = parts[1] ?? null;
   const endPart = parts.find((p) => p.startsWith('ends ')) ?? null;
+  const startPart = parts.find((p) => p.startsWith('starts ')) ?? null;
   const endTime = endPart ? endPart.replace('ends ', '') : null;
-  const source = sourcePart?.replace(/ \+ .+/, '') ?? null;
-  return { label, isBusy: label === 'BUSY', isFree: label === 'FREE', source, endTime };
+  const startTime = startPart ? startPart.replace('starts ', '') : null;
+  const source = sourcePart?.replace(/ \+ .+/, '').replace('starts', '').replace('ends', '').trim() ?? null;
+  return {
+    label,
+    isBusy: label === 'BUSY',
+    isFree: label === 'FREE',
+    isUpcoming: label === 'UPCOMING',
+    source: source || null,
+    endTime,
+    startTime,
+  };
 }
 
 // ─── Battery indicator ────────────────────────────────────────────────────────
@@ -64,11 +75,11 @@ function BatteryIndicator({ level, updatedAt }: { level: number | null; updatedA
 // ─── M5Stack CoreInk device illustration ──────────────────────────────────────
 
 function CoreInkDevice({ message }: { message: Message | null }) {
-  const { label, isBusy, source, endTime } = message
+  const { label, isBusy, isUpcoming, source, endTime, startTime } = message
     ? parseMessageMeta(message.content)
-    : { label: 'FREE', isBusy: false, source: null, endTime: null };
+    : { label: 'FREE', isBusy: false, isUpcoming: false, source: null, endTime: null, startTime: null };
 
-  const isCustom = message && !message.content.startsWith('BUSY') && message.content !== 'FREE';
+  const isCustom = message && !message.content.startsWith('BUSY') && !message.content.startsWith('UPCOMING') && message.content !== 'FREE';
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -96,9 +107,11 @@ function CoreInkDevice({ message }: { message: Message | null }) {
           <div
             className="w-2 h-2 rounded-full"
             style={{
-              background: isBusy ? '#ef4444' : '#22c55e',
+              background: isBusy ? '#ef4444' : isUpcoming ? '#f59e0b' : '#22c55e',
               boxShadow: isBusy
                 ? '0 0 6px #ef4444, 0 0 10px rgba(239,68,68,0.4)'
+                : isUpcoming
+                ? '0 0 6px #f59e0b, 0 0 10px rgba(245,158,11,0.4)'
                 : '0 0 6px #22c55e, 0 0 10px rgba(34,197,94,0.4)',
             }}
           />
@@ -118,7 +131,7 @@ function CoreInkDevice({ message }: { message: Message | null }) {
             style={{
               width: '100%',
               height: 142,
-              background: isBusy ? '#f0ece6' : '#eef2ee',
+              background: isBusy ? '#f0ece6' : isUpcoming ? '#fef9ec' : '#eef2ee',
               borderRadius: 4,
               display: 'flex',
               flexDirection: 'column',
@@ -127,7 +140,6 @@ function CoreInkDevice({ message }: { message: Message | null }) {
               fontFamily: '"Courier New", monospace',
               position: 'relative',
               overflow: 'hidden',
-              // eink pixel texture
               backgroundImage:
                 'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.018) 1px,rgba(0,0,0,0.018) 2px)',
             }}
@@ -169,6 +181,18 @@ function CoreInkDevice({ message }: { message: Message | null }) {
                   <div style={{ fontSize: 10, color: '#666', marginTop: 3 }}>ends {endTime}</div>
                 )}
               </div>
+            ) : isUpcoming ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#92400e', letterSpacing: '0.1em', marginBottom: 4 }}>UPCOMING</div>
+                {source && (
+                  <div style={{ fontSize: 9, color: '#78350f', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    {SOURCE_ICONS[source] ?? '📅'} {source}
+                  </div>
+                )}
+                {startTime && (
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>starts {startTime}</div>
+                )}
+              </div>
             ) : (
               <div style={{ textAlign: 'center' }}>
                 <div
@@ -203,7 +227,6 @@ function CoreInkDevice({ message }: { message: Message | null }) {
 
         {/* Front buttons row */}
         <div className="flex items-center justify-center gap-3 mt-3">
-          {/* Left button */}
           <button
             className="rounded"
             style={{
@@ -215,7 +238,6 @@ function CoreInkDevice({ message }: { message: Message | null }) {
               cursor: 'default',
             }}
           />
-          {/* Center M5 button */}
           <div
             style={{
               width: 36,
@@ -230,7 +252,6 @@ function CoreInkDevice({ message }: { message: Message | null }) {
           >
             <span style={{ color: '#aaa', fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>M5</span>
           </div>
-          {/* Right button */}
           <button
             className="rounded"
             style={{
@@ -282,11 +303,11 @@ function CoreInkDevice({ message }: { message: Message | null }) {
         <span
           className={cn(
             'flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full',
-            isBusy ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700',
+            isBusy ? 'bg-red-100 text-red-700' : isUpcoming ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700',
           )}
         >
-          <span className={cn('w-1.5 h-1.5 rounded-full', isBusy ? 'bg-red-500' : 'bg-green-500 animate-pulse')} />
-          {isBusy ? 'Busy' : 'Free'}
+          <span className={cn('w-1.5 h-1.5 rounded-full', isBusy ? 'bg-red-500' : isUpcoming ? 'bg-amber-500 animate-pulse' : 'bg-green-500 animate-pulse')} />
+          {isBusy ? 'Busy' : isUpcoming ? 'Upcoming' : 'Free'}
         </span>
         {message && (
           <span className="text-xs text-gray-400">
@@ -312,10 +333,11 @@ const TEMPLATES = [
 const MAX_LEN = 200;
 
 const STATUS_CONFIG: Record<string, { icon: any; label: string; className: string }> = {
-  pending:   { icon: Loader2,      label: 'Sending…',  className: 'text-yellow-600 bg-yellow-50' },
-  sent:      { icon: Clock,        label: 'Sent',       className: 'text-blue-600 bg-blue-50' },
-  delivered: { icon: CheckCircle,  label: 'Delivered',  className: 'text-green-600 bg-green-50' },
-  error:     { icon: AlertCircle,  label: 'Error',      className: 'text-red-600 bg-red-50' },
+  pending:   { icon: Loader2,      label: 'Sending…',   className: 'text-yellow-600 bg-yellow-50' },
+  sent:      { icon: Clock,        label: 'Sent',        className: 'text-blue-600 bg-blue-50' },
+  delivered: { icon: CheckCircle,  label: 'Delivered',   className: 'text-green-600 bg-green-50' },
+  cancelled: { icon: X,            label: 'Cancelled',   className: 'text-gray-400 bg-gray-50' },
+  error:     { icon: AlertCircle,  label: 'Error',       className: 'text-red-600 bg-red-50' },
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -323,25 +345,27 @@ const STATUS_CONFIG: Record<string, { icon: any; label: string; className: strin
 export default function MessagesPage() {
   const { data: session } = useSession();
   const [content, setContent] = useState('');
+  const [permanent, setPermanent] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [battery, setBattery] = useState<{ level: number | null; updatedAt: string | null }>({ level: null, updatedAt: null });
-  const [liveStatus, setLiveStatus] = useState<{ busy: boolean; payload: string; source: string | null; endAt: string | null } | null>(null);
+  const [liveStatus, setLiveStatus] = useState<{ busy: boolean; upcoming: boolean; payload: string; source: string | null; endAt: string | null } | null>(null);
 
   const token = (session as any)?.apiToken;
 
   // Device preview: typed content > live status > last delivered message > FREE
   const liveMessage: Message | null = liveStatus
-    ? { id: 'live', content: liveStatus.payload, status: 'delivered', sentAt: null, deliveredAt: null, errorMsg: null, createdAt: new Date().toISOString() }
+    ? { id: 'live', content: liveStatus.payload, status: 'delivered', permanent: false, sentAt: null, deliveredAt: null, errorMsg: null, createdAt: new Date().toISOString() }
     : null;
   const lastDelivered = messages.find((m) => m.status === 'delivered');
   const displayMessage: Message = liveMessage ?? lastDelivered ?? {
     id: 'default-free',
     content: 'FREE',
     status: 'delivered',
+    permanent: false,
     sentAt: null,
     deliveredAt: null,
     errorMsg: null,
@@ -362,7 +386,7 @@ export default function MessagesPage() {
     const battInterval = setInterval(fetchBattery, 60_000);
 
     const fetchLiveStatus = () =>
-      api.get<{ busy: boolean; payload: string; source: string | null; endAt: string | null }>('/integrations/live-status', token)
+      api.get<{ busy: boolean; upcoming: boolean; payload: string; source: string | null; endAt: string | null }>('/integrations/live-status', token)
         .then(setLiveStatus).catch(() => {});
     fetchLiveStatus();
     const statusInterval = setInterval(fetchLiveStatus, 5_000);
@@ -375,18 +399,21 @@ export default function MessagesPage() {
     setError('');
     setSending(true);
     try {
-      const msg = await api.post<Message>('/messages', { content: content.trim() }, token);
+      const msg = await api.post<Message>('/messages', { content: content.trim(), permanent }, token);
       setMessages((prev) => [msg, ...prev]);
       setContent('');
+      setPermanent(false);
       setSent(true);
       setTimeout(() => setSent(false), 3000);
 
-      const poll = setInterval(async () => {
-        const updated = await api.get<Message>(`/messages/${msg.id}`, token);
-        setMessages((prev) => prev.map((m) => (m.id === msg.id ? updated : m)));
-        if (updated.status === 'delivered' || updated.status === 'error') clearInterval(poll);
-      }, 2500);
-      setTimeout(() => clearInterval(poll), 30000);
+      if (!permanent) {
+        const poll = setInterval(async () => {
+          const updated = await api.get<Message>(`/messages/${msg.id}`, token);
+          setMessages((prev) => prev.map((m) => (m.id === msg.id ? updated : m)));
+          if (updated.status === 'delivered' || updated.status === 'error') clearInterval(poll);
+        }, 2500);
+        setTimeout(() => clearInterval(poll), 30000);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to send');
     } finally {
@@ -394,11 +421,19 @@ export default function MessagesPage() {
     }
   };
 
+  const handleCancel = async (id: string) => {
+    if (!token) return;
+    try {
+      const updated = await api.patch<Message>(`/messages/${id}/cancel`, {}, token);
+      setMessages((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    } catch { /* ignore */ }
+  };
+
   const remaining = MAX_LEN - content.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-8 py-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-10">
 
         {/* Header */}
         <div className="mb-8">
@@ -408,12 +443,12 @@ export default function MessagesPage() {
           </p>
         </div>
 
-        {/* Main grid */}
-        <div className="grid grid-cols-12 gap-6">
+        {/* Main grid — responsive: stacked on mobile, side-by-side on md+ */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* ── Left: Device preview ── */}
-          <div className="col-span-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center gap-2 sticky top-6">
+          <div className="col-span-1 md:col-span-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center gap-2 md:sticky md:top-6">
               <div className="flex items-center justify-between mb-4 w-full">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -429,10 +464,21 @@ export default function MessagesPage() {
               ) : liveStatus && (
                 <div className={cn(
                   'mt-2 flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium',
-                  liveStatus.busy ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600',
+                  liveStatus.busy
+                    ? 'bg-red-50 text-red-600'
+                    : liveStatus.upcoming
+                    ? 'bg-amber-50 text-amber-600'
+                    : 'bg-green-50 text-green-600',
                 )}>
-                  <span className={cn('w-1.5 h-1.5 rounded-full animate-pulse', liveStatus.busy ? 'bg-red-500' : 'bg-green-500')} />
-                  {liveStatus.busy ? `Busy · ${liveStatus.source ?? ''}` : 'Free'}
+                  <span className={cn(
+                    'w-1.5 h-1.5 rounded-full animate-pulse',
+                    liveStatus.busy ? 'bg-red-500' : liveStatus.upcoming ? 'bg-amber-500' : 'bg-green-500',
+                  )} />
+                  {liveStatus.busy
+                    ? `Busy · ${liveStatus.source ?? ''}`
+                    : liveStatus.upcoming
+                    ? 'Upcoming meeting'
+                    : 'Free'}
                   <span className="text-gray-400 ml-1">· live</span>
                 </div>
               )}
@@ -440,7 +486,7 @@ export default function MessagesPage() {
           </div>
 
           {/* ── Right: Compose + History ── */}
-          <div className="col-span-8 flex flex-col gap-6">
+          <div className="col-span-1 md:col-span-8 flex flex-col gap-6">
 
             {/* Compose card */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -487,6 +533,33 @@ export default function MessagesPage() {
                 </span>
               </div>
 
+              {/* Permanent toggle */}
+              <label className="flex items-center gap-2.5 mt-3 cursor-pointer select-none w-fit">
+                <div
+                  onClick={() => setPermanent((p) => !p)}
+                  className={cn(
+                    'w-8 h-4 rounded-full transition-colors relative flex-shrink-0',
+                    permanent ? 'bg-brand-500' : 'bg-gray-200',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all',
+                      permanent ? 'left-4' : 'left-0.5',
+                    )}
+                  />
+                </div>
+                <span className="text-xs text-gray-600 flex items-center gap-1">
+                  <Pin size={11} className={permanent ? 'text-brand-500' : 'text-gray-400'} />
+                  Keep on display permanently
+                </span>
+              </label>
+              {permanent && (
+                <p className="text-xs text-amber-600 mt-1.5 ml-10">
+                  This message will stay on the display until you cancel it, even when meetings start or end.
+                </p>
+              )}
+
               {/* Feedback */}
               {error && (
                 <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
@@ -528,19 +601,24 @@ export default function MessagesPage() {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-80 overflow-y-auto -mr-2 pr-2">
-                  {messages.map((msg, idx) => {
+                  {messages.map((msg) => {
                     const statusCfg = STATUS_CONFIG[msg.status] || STATUS_CONFIG.pending;
                     const Icon = statusCfg.icon;
-                    const { label, isBusy, isFree, source, endTime } = parseMessageMeta(msg.content);
+                    const { label, isBusy, isFree, isUpcoming, source, endTime, startTime } = parseMessageMeta(msg.content);
                     const isOnDisplay = msg.id === lastDelivered?.id;
-                    const isAuto = isBusy || isFree;
+                    const isAuto = isBusy || isFree || isUpcoming;
+                    const isCancelled = msg.status === 'cancelled';
 
                     return (
                       <div
                         key={msg.id}
                         className={cn(
                           'flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors',
-                          isOnDisplay
+                          isCancelled
+                            ? 'border-gray-100 bg-gray-50 opacity-50'
+                            : msg.permanent
+                            ? 'border-brand-200 bg-brand-50'
+                            : isOnDisplay
                             ? 'border-brand-200 bg-brand-50'
                             : 'border-gray-100 hover:border-gray-200 bg-white',
                         )}
@@ -549,7 +627,7 @@ export default function MessagesPage() {
                         <div
                           className={cn(
                             'w-2 h-2 rounded-full flex-shrink-0',
-                            isBusy ? 'bg-red-500' : isFree ? 'bg-green-500' : 'bg-gray-400',
+                            isBusy ? 'bg-red-500' : isFree ? 'bg-green-500' : isUpcoming ? 'bg-amber-400' : 'bg-gray-400',
                           )}
                         />
 
@@ -558,7 +636,7 @@ export default function MessagesPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={cn(
                               'text-sm font-semibold',
-                              isBusy ? 'text-red-700' : isFree ? 'text-green-700' : 'text-gray-900',
+                              isBusy ? 'text-red-700' : isFree ? 'text-green-700' : isUpcoming ? 'text-amber-700' : 'text-gray-900',
                             )}>
                               {label}
                             </span>
@@ -572,27 +650,48 @@ export default function MessagesPage() {
                                 <Clock size={10} /> ends {endTime}
                               </span>
                             )}
+                            {startTime && (
+                              <span className="text-xs text-amber-500 flex items-center gap-1">
+                                <Clock size={10} /> starts {startTime}
+                              </span>
+                            )}
                             {isAuto && (
                               <span className="flex items-center gap-0.5 text-xs text-gray-400">
                                 <Zap size={9} /> auto
                               </span>
                             )}
+                            {msg.permanent && !isCancelled && (
+                              <span className="flex items-center gap-0.5 text-xs text-brand-600">
+                                <Pin size={9} /> pinned
+                              </span>
+                            )}
                           </div>
-                          {isOnDisplay && (
+                          {isOnDisplay && !isCancelled && (
                             <p className="text-xs text-brand-600 font-medium mt-0.5">On display now</p>
                           )}
                         </div>
 
-                        {/* Right: status + time */}
-                        <div className="flex-shrink-0 text-right">
-                          <span className={cn(
-                            'flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
-                            statusCfg.className,
-                          )}>
-                            <Icon size={9} className={msg.status === 'pending' ? 'animate-spin' : ''} />
-                            {statusCfg.label}
-                          </span>
-                          <p className="text-xs text-gray-400 mt-1">{format(new Date(msg.createdAt), 'HH:mm')}</p>
+                        {/* Right: cancel button for permanent, status + time */}
+                        <div className="flex-shrink-0 flex items-center gap-2">
+                          {msg.permanent && !isCancelled && (
+                            <button
+                              onClick={() => handleCancel(msg.id)}
+                              title="Cancel permanent message"
+                              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+                            >
+                              <X size={12} /> Cancel
+                            </button>
+                          )}
+                          <div className="text-right">
+                            <span className={cn(
+                              'flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
+                              statusCfg.className,
+                            )}>
+                              <Icon size={9} className={msg.status === 'pending' ? 'animate-spin' : ''} />
+                              {statusCfg.label}
+                            </span>
+                            <p className="text-xs text-gray-400 mt-1">{format(new Date(msg.createdAt), 'HH:mm')}</p>
+                          </div>
                         </div>
                       </div>
                     );
