@@ -73,20 +73,23 @@ export class IntegrationsService implements OnModuleInit {
 
     // Priority 1: any inCall (Slack / Teams / Microsoft)
     for (const r of presenceResults) {
-      if (r.status === 'fulfilled' && r.value?.inCall) {
-        const src = r.value._provider === 'slack' ? 'Slack' : 'Teams';
-        return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+      if (r.status === 'fulfilled') {
+        const v = r.value as any;
+        if (v?.inCall) {
+          const src = v._provider === 'slack' ? 'Slack' : 'Teams';
+          return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+        }
       }
     }
 
     // Priority 2: Teams/Microsoft Busy or DoNotDisturb availability
     for (const r of presenceResults) {
-      if (
-        r.status === 'fulfilled' &&
-        ['Busy', 'DoNotDisturb'].includes(r.value?.availability ?? '')
-      ) {
-        const src = r.value._provider === 'slack' ? 'Slack' : 'Teams';
-        return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+      if (r.status === 'fulfilled') {
+        const v = r.value as any;
+        if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
+          const src = v._provider === 'slack' ? 'Slack' : 'Teams';
+          return { busy: true, payload: `BUSY · ${src}`, source: src, endAt: null };
+        }
       }
     }
 
