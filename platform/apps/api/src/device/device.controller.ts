@@ -1,5 +1,5 @@
 import { Controller, Get, Patch, Body, Req, UseGuards } from '@nestjs/common';
-import { IsInt, Min, Max } from 'class-validator';
+import { IsInt, Min, Max, IsBoolean } from 'class-validator';
 import { DeviceService, BatteryStatus } from './device.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,6 +8,11 @@ class BatteryDto {
   @Min(0)
   @Max(100)
   level: number;
+}
+
+class PresenceDto {
+  @IsBoolean()
+  micActive: boolean;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -23,5 +28,10 @@ export class DeviceController {
   @Get('battery')
   async getBattery(@Req() req: any): Promise<BatteryStatus | { level: null; updatedAt: null }> {
     return (await this.device.getBattery(req.user.id)) ?? { level: null, updatedAt: null };
+  }
+
+  @Patch('presence')
+  async updatePresence(@Req() req: any, @Body() dto: PresenceDto) {
+    return this.device.updatePresence(req.user.id, dto.micActive);
   }
 }

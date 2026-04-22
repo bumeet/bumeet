@@ -26,6 +26,7 @@ const SOURCE_ICONS: Record<string, string> = {
   Slack: '💬',
   'Google Calendar': '📅',
   Microsoft: '📆',
+  Mic: '🎙️',
 };
 
 function parseMessageMeta(content: string) {

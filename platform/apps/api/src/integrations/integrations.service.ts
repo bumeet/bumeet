@@ -49,16 +49,21 @@ export class IntegrationsService implements OnModuleInit {
     }
   }
 
-  // ── Unified live status (Slack + Teams + Calendar) ─────────────────────────
+  // ── Unified live status (Slack + Teams + Calendar + Mic) ──────────────────
   async getLiveStatus(userId: string): Promise<LiveStatus> {
     const integrations = await this.getAll(userId);
 
-    const slackIntegrations   = integrations.filter((i) => i.provider === 'slack');
-    const teamsIntegrations   = integrations.filter((i) => i.provider === 'teams');
-    const msIntegrations      = integrations.filter((i) => i.provider === 'microsoft');
+    const slackIntegrations = integrations.filter((i) => i.provider === 'slack');
+    const teamsIntegrations = integrations.filter((i) => i.provider === 'teams');
+    const msIntegrations    = integrations.filter((i) => i.provider === 'microsoft');
     const hasPresence = slackIntegrations.length + teamsIntegrations.length + msIntegrations.length > 0;
 
-    const [calendarResult, ...presenceResults] = await Promise.allSettled([
+    // Fetch mic status and all remote checks in parallel
+    const [userRow, calendarResult, ...presenceResults] = await Promise.allSettled([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { micActive: true, micUpdatedAt: true },
+      }),
       this.getBusyStatus(userId),
       ...slackIntegrations.map((i) =>
         this.slack.getPresence(i.id).then((p) => ({ ...p, _provider: 'slack' })),
@@ -71,6 +76,12 @@ export class IntegrationsService implements OnModuleInit {
       ),
     ]);
 
+    // Mic status is fresh if updated within the last 30 s (agent heartbeat every 25 s)
+    const micRow = userRow.status === 'fulfilled' ? userRow.value : null;
+    const micFresh = micRow?.micUpdatedAt
+      && (Date.now() - micRow.micUpdatedAt.getTime() < 30_000);
+    const micActive = Boolean(micFresh && micRow?.micActive);
+
     // Priority 1: any inCall (Slack / Teams / Microsoft)
     for (const r of presenceResults) {
       if (r.status === 'fulfilled') {
@@ -82,7 +93,7 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
 
-    // Priority 2: Teams/Microsoft Busy or DoNotDisturb availability
+    // Priority 2: Teams/Microsoft Busy or DoNotDisturb
     for (const r of presenceResults) {
       if (r.status === 'fulfilled') {
         const v = r.value as any;
@@ -93,20 +104,29 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
 
-    // Priority 3: Calendar event
+    // Priority 3: Microphone in use (desktop agent, any app — Google Meet, Zoom, FaceTime…)
+    // This resolves early-meeting-end: when the user hangs up, the mic is released immediately,
+    // even if the calendar event still has time remaining.
+    if (micActive) {
+      return { busy: true, upcoming: false, payload: 'BUSY · Call', source: 'Mic', endAt: null };
+    }
+
+    // Priority 4: Calendar event
     if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
       const cal = calendarResult.value;
       const src = (cal.source ?? '').replace('google', 'Google Calendar').replace('microsoft', 'Outlook');
 
-      // S-02: If the meeting is active (not just upcoming) but all connected presence integrations
-      // report Available, trust presence — user likely finished early
-      if (!cal.upcoming && hasPresence) {
-        const allAvailable = presenceResults.every((r) => {
-          if (r.status !== 'fulfilled') return true; // network error → don't block calendar
+      // S-02: Active meeting but mic is OFF and Slack/Teams say Available → user left early
+      if (!cal.upcoming) {
+        const micJustStopped = micRow?.micUpdatedAt
+          && (Date.now() - micRow.micUpdatedAt.getTime() < 120_000)
+          && !micRow.micActive;
+        const presenceAllFree = hasPresence && presenceResults.every((r) => {
+          if (r.status !== 'fulfilled') return true;
           const v = r.value as any;
           return !v?.inCall && !['Busy', 'DoNotDisturb'].includes(v?.availability ?? '');
         });
-        if (allAvailable) {
+        if (micJustStopped || presenceAllFree) {
           return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
         }
       }

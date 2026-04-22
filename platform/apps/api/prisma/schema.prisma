@@ -17,6 +17,8 @@ model User {
   language         String    @default("en")
   batteryLevel     Int?
   batteryUpdatedAt DateTime?
+  micActive        Boolean   @default(false)
+  micUpdatedAt     DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

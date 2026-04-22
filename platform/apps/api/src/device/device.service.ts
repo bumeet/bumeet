@@ -28,4 +28,13 @@ export class DeviceService {
     if (!user?.batteryLevel || !user.batteryUpdatedAt) return null;
     return { level: user.batteryLevel, updatedAt: user.batteryUpdatedAt.toISOString() };
   }
+
+  async updatePresence(userId: string, micActive: boolean): Promise<{ micActive: boolean; updatedAt: string }> {
+    const now = new Date();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { micActive, micUpdatedAt: now },
+    });
+    return { micActive, updatedAt: now.toISOString() };
+  }
 }
