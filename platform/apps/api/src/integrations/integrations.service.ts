@@ -116,18 +116,36 @@ export class IntegrationsService implements OnModuleInit {
       const cal = calendarResult.value;
       const src = (cal.source ?? '').replace('google', 'Google Calendar').replace('microsoft', 'Outlook');
 
-      // S-02: Active meeting but mic is OFF and Slack/Teams say Available → user left early
+      // S-02 / S-05: Checks for active (non-upcoming) meetings
       if (!cal.upcoming) {
-        const micJustStopped = micRow?.micUpdatedAt
-          && (Date.now() - micRow.micUpdatedAt.getTime() < 120_000)
-          && !micRow.micActive;
+        const eventStartAt = cal.startAt ? new Date(cal.startAt) : null;
+        // mic was active at some point after this event started (and is now off, since Priority 3
+        // already returned BUSY·Call when micActive=true — so reaching here means mic is off)
+        const micWasUsedDuringEvent = eventStartAt
+          && micRow?.micUpdatedAt
+          && micRow.micUpdatedAt > eventStartAt;
+
+        // S-02: Left early — mic was used during this event and has since been released
+        if (micWasUsedDuringEvent) {
+          return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
+        }
+
+        // S-02 fallback: presence signals Available while calendar says BUSY
         const presenceAllFree = hasPresence && presenceResults.every((r) => {
           if (r.status !== 'fulfilled') return true;
           const v = r.value as any;
           return !v?.inCall && !['Busy', 'DoNotDisturb'].includes(v?.availability ?? '');
         });
-        if (micJustStopped || presenceAllFree) {
+        if (presenceAllFree) {
           return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
+        }
+
+        // S-05: Never joined — after 5-min grace period with no mic activity
+        if (eventStartAt) {
+          const minutesSinceStart = (Date.now() - eventStartAt.getTime()) / 60_000;
+          if (minutesSinceStart >= 5) {
+            return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
+          }
         }
       }
 
