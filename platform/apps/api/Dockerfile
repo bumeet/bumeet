@@ -13,9 +13,9 @@ RUN pnpm install --no-frozen-lockfile --filter api...
 FROM deps AS builder
 WORKDIR /app
 COPY apps/api ./apps/api
-WORKDIR /app/apps/api
-RUN npx prisma generate
-RUN npx nest build && ls dist/main.js
+# Run from workspace root so pnpm resolves node_modules correctly
+RUN pnpm --filter api exec prisma generate
+RUN pnpm --filter api run build && ls apps/api/dist/main.js
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM base AS runner
@@ -37,8 +37,8 @@ ENV PORT=8080
 WORKDIR /app/apps/api
 
 # Generate Prisma client for the runner platform
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN pnpm exec prisma generate --schema=./prisma/schema.prisma
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/main"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy --schema=./prisma/schema.prisma && node dist/main"]
