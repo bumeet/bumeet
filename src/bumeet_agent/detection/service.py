@@ -69,6 +69,7 @@ class AgentOrchestrator:
 		self._pending_send: asyncio.Task[None] | None = None
 		self._api_poll_task: asyncio.Task[None] | None = None
 		self._last_api_busy: bool = False
+		self._last_api_upcoming: bool = False
 		self._last_hw_busy: bool = False
 
 	async def start_api_polling(self) -> None:
@@ -93,38 +94,65 @@ class AgentOrchestrator:
 						if resp.status == 200:
 							data: dict[str, Any] = await resp.json()
 							busy: bool = data.get("busy", False)
-							if busy != self._last_api_busy:
-								self._last_api_busy = busy
+							upcoming: bool = data.get("upcoming", False)
+							# Treat upcoming as not-busy for hw combination — payload handled separately
+							effective_busy = busy and not upcoming
+							if effective_busy != self._last_api_busy or upcoming != self._last_api_upcoming:
+								self._last_api_busy = effective_busy
+								self._last_api_upcoming = upcoming
 								await self._push_combined_state(api_data=data if busy else None)
 				except (aiohttp.ClientError, asyncio.TimeoutError):
 					pass
 				await asyncio.sleep(interval)
 
 	async def _push_combined_state(self, api_data: dict[str, Any] | None = None) -> None:
-		"""Send payload to CoreInk based on hardware OR API busy state."""
-		is_busy = self._last_hw_busy or self._last_api_busy
+		"""Send payload to CoreInk based on hardware OR API busy/upcoming state."""
+		from datetime import datetime, timezone
 
-		if is_busy and api_data and api_data.get("busy"):
-			# Rich payload: source + end time from API
-			source = (api_data.get("source") or "").replace("google", "Google Calendar").replace("microsoft", "Outlook").replace("slack", "Slack").replace("teams", "Teams")
-			end_at = api_data.get("endAt") or ""
-			end_str = ""
-			if end_at:
+		def _fmt_source(raw: str) -> str:
+			return raw.replace("google", "Google Calendar").replace("microsoft", "Outlook").replace("slack", "Slack").replace("teams", "Teams")
+
+		# UPCOMING: calendar says meeting starts within 5 min and hardware is not active
+		# Hardware (mic/camera) takes priority — if user is already in a call, show BUSY
+		if self._last_api_upcoming and not self._last_hw_busy and api_data:
+			source = _fmt_source(api_data.get("source") or "")
+			start_at = api_data.get("startAt") or ""
+			start_str = ""
+			if start_at:
 				try:
-					from datetime import datetime, timezone
-					dt = datetime.fromisoformat(end_at.replace("Z", "+00:00")).astimezone()
-					end_str = dt.strftime("%H:%M")
+					dt = datetime.fromisoformat(start_at.replace("Z", "+00:00")).astimezone()
+					start_str = dt.strftime("%H:%M")
 				except Exception:
 					pass
-			if source and end_str:
-				raw = f"BUSY · {source} · ends {end_str}"
-			elif source:
-				raw = f"BUSY · {source}"
+			if source and start_str:
+				raw = f"UPCOMING · {source} · starts {start_str}"
+			elif start_str:
+				raw = f"UPCOMING · starts {start_str}"
 			else:
-				raw = "BUSY"
+				raw = "UPCOMING"
 			payload = raw.encode("utf-8")
-		elif is_busy:
-			payload = b"BUSY"
+
+		elif self._last_hw_busy or self._last_api_busy:
+			if api_data and api_data.get("busy"):
+				source = _fmt_source(api_data.get("source") or "")
+				end_at = api_data.get("endAt") or ""
+				end_str = ""
+				if end_at:
+					try:
+						dt = datetime.fromisoformat(end_at.replace("Z", "+00:00")).astimezone()
+						end_str = dt.strftime("%H:%M")
+					except Exception:
+						pass
+				if source and end_str:
+					raw = f"BUSY · {source} · ends {end_str}"
+				elif source:
+					raw = f"BUSY · {source}"
+				else:
+					raw = "BUSY"
+				payload = raw.encode("utf-8")
+			else:
+				payload = b"BUSY"
+
 		else:
 			payload = b"FREE"
 
