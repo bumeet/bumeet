@@ -94,12 +94,17 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     // Priority 2: Teams/Microsoft Busy or DoNotDisturb
-    for (const r of presenceResults) {
-      if (r.status === 'fulfilled') {
-        const v = r.value as any;
-        if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
-          const src = v._provider === 'slack' ? 'Slack' : 'Teams';
-          return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
+    // Skip if calendar shows the event is still upcoming — Teams pre-sets presence to Busy
+    // a few minutes before meetings start, which would mask the UPCOMING state.
+    const calIsUpcoming = calendarResult.status === 'fulfilled' && calendarResult.value.upcoming;
+    if (!calIsUpcoming) {
+      for (const r of presenceResults) {
+        if (r.status === 'fulfilled') {
+          const v = r.value as any;
+          if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
+            const src = v._provider === 'slack' ? 'Slack' : 'Teams';
+            return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
+          }
         }
       }
     }
