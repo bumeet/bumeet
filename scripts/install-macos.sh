@@ -34,9 +34,18 @@ echo "→ Latest release: $LATEST"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-curl -fsSL \
-  "https://github.com/${REPO}/releases/download/${LATEST}/bumeet-agent-macos" \
-  -o "$TMP/$BINARY_NAME"
+# Use gh CLI for authenticated download (works with private repos)
+if ! command -v gh &>/dev/null; then
+  echo "Error: GitHub CLI (gh) is required. Install it with:"
+  echo "  brew install gh"
+  echo "Then run: gh auth login"
+  exit 1
+fi
+
+gh release download "$LATEST" \
+  --repo "$REPO" \
+  --pattern "bumeet-agent-macos" \
+  --dir "$TMP"
 chmod +x "$TMP/$BINARY_NAME"
 
 # ── Install binary ────────────────────────────────────────────────────────────
