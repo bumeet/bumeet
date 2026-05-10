@@ -10,7 +10,7 @@ from typing import Any
 try:
     import aiohttp
 except ImportError:
-    aiohttp = None  # type: ignore[assignment]
+    aiohttp = None  # type: ignore
 
 from bumeet_agent.ble.client import BleClient
 from bumeet_agent.config import ApiSettings

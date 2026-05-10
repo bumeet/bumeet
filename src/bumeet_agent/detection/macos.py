@@ -113,7 +113,7 @@ def _audio_device_has_input_streams(lib: ctypes.CDLL, device_id: int) -> bool:
         return False
     # AudioBufferList.mNumberBuffers is the first uint32 (little-endian on macOS)
     (n_buffers,) = struct.unpack_from("<I", buf.raw)
-    return n_buffers > 0
+    return bool(n_buffers > 0)
 
 
 def _audio_device_is_running(lib: ctypes.CDLL, device_id: int) -> bool:

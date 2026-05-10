@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from bumeet_agent.bootstrap import build_container
+from bumeet_agent.detection.base import HardwareDetector
 from bumeet_agent.detection.service import AgentOrchestrator
 from bumeet_agent.events.models import AgentEvent, EventTopic
 from bumeet_agent.logging import configure_logging, get_logger
@@ -18,7 +19,7 @@ from bumeet_agent.ui.simulator import launch_simulation_viewer
 logger = get_logger(__name__)
 
 
-def _build_detector(poll_interval: float):
+def _build_detector(poll_interval: float) -> HardwareDetector:
     """Return the platform-appropriate hardware detector."""
     if sys.platform == "darwin":
         from bumeet_agent.detection.macos import MacOSHardwareDetector
@@ -53,10 +54,10 @@ async def run(
 
     container = build_container(config_path)
 
-    async def log_event(event: AgentEvent) -> None:
+    async def _log_container_event(event: AgentEvent) -> None:
         logger.info("event=%s payload=%s", event.topic, event.payload)
 
-    await container.event_bus.subscribe("*", log_event)
+    await container.event_bus.subscribe("*", _log_container_event)
     await container.event_bus.emit(
         EventTopic.APP_STARTED.value,
         config_path=str(container.settings_store.path),

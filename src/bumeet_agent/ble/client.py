@@ -15,8 +15,8 @@ from bumeet_agent.logging import get_logger
 try:
     from bleak import BleakClient, BleakScanner
 except Exception:  # pragma: no cover
-    BleakClient = None  # type: ignore[assignment]
-    BleakScanner = None  # type: ignore[assignment]
+    BleakClient = None  # type: ignore
+    BleakScanner = None  # type: ignore
 
 logger = get_logger(__name__)
 
