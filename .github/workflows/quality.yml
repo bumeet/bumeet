@@ -5,13 +5,45 @@ on:
     branches: [main]
 
 jobs:
+  # ── Detect changed paths ─────────────────────────────────────────────────────
+  changes:
+    name: "Detect changed paths"
+    runs-on: ubuntu-latest
+    outputs:
+      web:      ${{ steps.filter.outputs.web }}
+      api:      ${{ steps.filter.outputs.api }}
+      agent:    ${{ steps.filter.outputs.agent }}
+      firmware: ${{ steps.filter.outputs.firmware }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'platform/apps/web/**'
+              - 'platform/package.json'
+              - 'platform/pnpm-lock.yaml'
+            api:
+              - 'platform/apps/api/**'
+              - 'platform/package.json'
+              - 'platform/pnpm-lock.yaml'
+            agent:
+              - 'src/bumeet_agent/**'
+              - 'pyproject.toml'
+              - 'tests/unit/**'
+            firmware:
+              - 'firmware/**'
+            terraform:
+              - 'infra/**'
+
   # ── Web (Next.js) ────────────────────────────────────────────────────────────
   web:
     name: "Web — lint / tsc / test"
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.changed_files, 'platform/apps/web') ||
-      github.event_name == 'workflow_dispatch'
     defaults:
       run:
         working-directory: platform
@@ -44,10 +76,9 @@ jobs:
   # ── API (NestJS) ─────────────────────────────────────────────────────────────
   api:
     name: "API — lint / tsc / test"
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.changed_files, 'platform/apps/api') ||
-      github.event_name == 'workflow_dispatch'
     defaults:
       run:
         working-directory: platform
@@ -80,12 +111,9 @@ jobs:
   # ── Python agent ──────────────────────────────────────────────────────────────
   agent:
     name: "Agent — ruff / mypy / pytest"
+    needs: changes
+    if: needs.changes.outputs.agent == 'true'
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.changed_files, 'src/bumeet_agent') ||
-      contains(github.event.pull_request.changed_files, 'pyproject.toml') ||
-      contains(github.event.pull_request.changed_files, 'tests/unit') ||
-      github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -113,10 +141,9 @@ jobs:
   # ── Firmware (Arduino) ───────────────────────────────────────────────────────
   firmware:
     name: "Firmware — compile"
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.changed_files, 'firmware') ||
-      github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -151,10 +178,9 @@ jobs:
   # ── Terraform ────────────────────────────────────────────────────────────────
   terraform:
     name: "Terraform — fmt / validate / tflint"
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true'
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.changed_files, 'infra') ||
-      github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
