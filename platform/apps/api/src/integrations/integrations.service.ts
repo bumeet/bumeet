@@ -119,15 +119,16 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
 
-    // Priority 2: Teams/Microsoft Busy or DoNotDisturb (Zoom/Webex inCall already caught above)
+    // Priority 2: Teams/Microsoft Busy (Zoom/Webex inCall already caught above)
     // Skip if calendar shows the event is still upcoming — Teams pre-sets presence to Busy
     // a few minutes before meetings start, which would mask the UPCOMING state.
+    // DoNotDisturb is intentionally excluded — it's a manual focus state, not an active meeting.
     const calIsUpcoming = calendarResult.status === 'fulfilled' && calendarResult.value.upcoming;
     if (!calIsUpcoming) {
       for (const r of presenceResults) {
         if (r.status === 'fulfilled') {
           const v = r.value as any;
-          if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
+          if (v?.availability === 'Busy') {
             const src = providerLabel(v._provider);
             return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
           }
