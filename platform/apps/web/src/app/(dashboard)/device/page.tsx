@@ -2,29 +2,62 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { Bluetooth, Terminal, CheckCircle, AlertCircle, Loader2, Download, Copy, Check } from 'lucide-react';
+import {
+  Bluetooth, Terminal, CheckCircle, AlertCircle,
+  Loader2, Download, Copy, Check, Monitor,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const DEFAULT_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+
+type Platform = 'macos' | 'windows';
 
 interface BleConfig {
   deviceAddress: string | null;
   characteristicUuid: string | null;
 }
 
+function CopyBlock({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <div className="bg-gray-900 rounded-lg p-4 flex items-start gap-3">
+      <Terminal size={16} className="text-gray-400 mt-0.5 shrink-0" />
+      <code className="text-green-400 text-sm break-all flex-1">{value}</code>
+      <button onClick={copy} className="shrink-0 text-gray-400 hover:text-white transition-colors">
+        {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+      </button>
+    </div>
+  );
+}
+
 export default function DevicePage() {
   const { data: session } = useSession();
+  const [platform, setPlatform] = useState<Platform>('macos');
   const [config, setConfig] = useState<BleConfig>({ deviceAddress: null, characteristicUuid: null });
   const [address, setAddress] = useState('');
   const [uuid, setUuid] = useState(DEFAULT_CHAR_UUID);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
-  const [copied, setCopied] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   const token = (session as any)?.apiToken as string | undefined;
-  const installCmd = token
+
+  const macCmd = token
     ? `curl -fsSL https://bumeet.es/install.sh | bash -s -- --token ${token}`
     : `curl -fsSL https://bumeet.es/install.sh | bash`;
+
+  const winCmd = token
+    ? `irm https://bumeet.es/install.ps1 | iex; # then: .\\install.ps1 -Token ${token}`
+    : `irm https://bumeet.es/install.ps1 | iex`;
+
+  const winCmdFull = token
+    ? `& ([scriptblock]::Create((irm https://bumeet.es/install.ps1))) -Token "${token}"`
+    : `irm https://bumeet.es/install.ps1 | iex`;
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -46,7 +79,7 @@ export default function DevicePage() {
   async function save() {
     if (!token || !address.trim() || !uuid.trim()) return;
     setSaving(true);
-    setStatus('idle');
+    setSaveStatus('idle');
     try {
       const res = await fetch(`${API_URL}/device/ble-config`, {
         method: 'PUT',
@@ -56,21 +89,15 @@ export default function DevicePage() {
       if (res.ok) {
         const data: BleConfig = await res.json();
         setConfig(data);
-        setStatus('saved');
+        setSaveStatus('saved');
       } else {
-        setStatus('error');
+        setSaveStatus('error');
       }
     } catch {
-      setStatus('error');
+      setSaveStatus('error');
     } finally {
       setSaving(false);
     }
-  }
-
-  function copyInstallCmd() {
-    navigator.clipboard.writeText(installCmd);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   const isPaired = Boolean(config.deviceAddress && config.characteristicUuid);
@@ -89,34 +116,74 @@ export default function DevicePage() {
 
       {/* Step 1 — Install agent */}
       <section className="mb-8">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">1</span>
           <h2 className="font-semibold text-gray-800">Install the desktop agent</h2>
         </div>
-        <p className="text-sm text-gray-500 mb-3 ml-8">
-          Run this command in Terminal on your Mac. The agent starts automatically at login.
-        </p>
-        <div className="ml-8 bg-gray-900 rounded-lg p-4 flex items-start gap-3">
-          <Terminal size={16} className="text-gray-400 mt-0.5 shrink-0" />
-          <code className="text-green-400 text-sm break-all flex-1">{installCmd}</code>
-          <button
-            onClick={copyInstallCmd}
-            className="shrink-0 text-gray-400 hover:text-white transition-colors"
-          >
-            {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-          </button>
+
+        {/* Platform tabs */}
+        <div className="ml-8 mb-3 flex gap-2">
+          {(['macos', 'windows'] as Platform[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPlatform(p)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                platform === p
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <Monitor size={14} />
+              {p === 'macos' ? 'macOS' : 'Windows'}
+            </button>
+          ))}
         </div>
-        <p className="text-xs text-gray-400 mt-2 ml-8">
-          Requires macOS 13+.{' '}
-          <a href="https://github.com/bumeet/bumeet/releases/latest" target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">
-            <Download size={11} /> Download manually
-          </a>
-        </p>
+
+        {platform === 'macos' && (
+          <div className="ml-8 space-y-2">
+            <p className="text-sm text-gray-500">
+              Run this in <strong>Terminal</strong>. The agent starts automatically at login.
+            </p>
+            <CopyBlock value={macCmd} />
+            <p className="text-xs text-gray-400">
+              Requires macOS 13+.{' '}
+              <a
+                href="https://github.com/bumeet/bumeet/releases/latest"
+                target="_blank"
+                rel="noreferrer"
+                className="underline inline-flex items-center gap-1"
+              >
+                <Download size={11} />Download manually
+              </a>
+            </p>
+          </div>
+        )}
+
+        {platform === 'windows' && (
+          <div className="ml-8 space-y-2">
+            <p className="text-sm text-gray-500">
+              Run this in <strong>PowerShell</strong> (no admin required). The agent registers as a scheduled task that starts at login.
+            </p>
+            <CopyBlock value={winCmdFull} />
+            <p className="text-xs text-gray-400">
+              Requires Windows 10/11 with PowerShell 5.1+.{' '}
+              <a
+                href="https://github.com/bumeet/bumeet/releases/latest"
+                target="_blank"
+                rel="noreferrer"
+                className="underline inline-flex items-center gap-1"
+              >
+                <Download size={11} />Download .exe manually
+              </a>
+            </p>
+          </div>
+        )}
       </section>
 
       {/* Step 2 — BLE config */}
       <section className="mb-8">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">2</span>
           <h2 className="font-semibold text-gray-800">Configure your display</h2>
           {isPaired && <CheckCircle size={16} className="text-green-500" />}
@@ -130,11 +197,17 @@ export default function DevicePage() {
               type="text"
               value={address}
               onChange={e => setAddress(e.target.value)}
-              placeholder="e.g. XX:XX:XX:XX:XX:XX  or  XXXXXXXX-XXXX-…"
+              placeholder={platform === 'windows' ? 'e.g. XX:XX:XX:XX:XX:XX' : 'e.g. XX:XX:XX:XX:XX:XX  or  XXXXXXXX-XXXX-…'}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Find it in System Settings → Bluetooth, or run <code className="bg-gray-100 px-1 rounded">bumeet-agent --scan</code> in Terminal.
+              {platform === 'macos'
+                ? 'Find it in System Settings → Bluetooth, or run '
+                : 'Find it in Settings → Bluetooth, or run '}
+              <code className="bg-gray-100 px-1 rounded">
+                {platform === 'macos' ? 'bumeet-agent --scan' : '.\\bumeet-agent.exe --scan'}
+              </code>
+              {' '}in a terminal.
             </p>
           </div>
           <div>
@@ -149,7 +222,7 @@ export default function DevicePage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Pre-filled with the CoreInk default. Only change if you use a custom firmware.
+              Pre-filled with the CoreInk default. Only change if you use custom firmware.
             </p>
           </div>
 
@@ -163,12 +236,12 @@ export default function DevicePage() {
               Save configuration
             </button>
 
-            {status === 'saved' && (
+            {saveStatus === 'saved' && (
               <span className="text-sm text-green-600 flex items-center gap-1">
                 <CheckCircle size={14} /> Saved — agent will pick this up on next start
               </span>
             )}
-            {status === 'error' && (
+            {saveStatus === 'error' && (
               <span className="text-sm text-red-500 flex items-center gap-1">
                 <AlertCircle size={14} /> Failed to save, try again
               </span>
@@ -179,7 +252,7 @@ export default function DevicePage() {
 
       {/* Step 3 — Verify */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">3</span>
           <h2 className="font-semibold text-gray-800">Verify the connection</h2>
         </div>
@@ -188,7 +261,8 @@ export default function DevicePage() {
             <div className="flex items-center gap-2 text-green-700">
               <CheckCircle size={16} />
               <span>
-                Display configured: <code className="font-mono text-xs bg-green-50 px-1 rounded">{config.deviceAddress}</code>
+                Display configured:{' '}
+                <code className="font-mono text-xs bg-green-50 px-1 rounded">{config.deviceAddress}</code>
               </span>
             </div>
           ) : (

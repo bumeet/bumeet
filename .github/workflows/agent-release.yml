@@ -120,10 +120,24 @@ jobs:
             | Windows | `bumeet-agent-windows.exe` | 64-bit · ejecuta directamente |
             | Linux | `bumeet-agent-linux` | x86_64 · `chmod +x` antes de ejecutar |
 
-            ### Primeros pasos
-            1. Descarga el binario para tu plataforma
+            ### Instalación con un comando
+
+            **macOS** (Terminal):
+            ```bash
+            curl -fsSL https://bumeet.es/install.sh | bash
+            ```
+
+            **Windows** (PowerShell):
+            ```powershell
+            irm https://bumeet.es/install.ps1 | iex
+            ```
+
+            Ambos instaladores descargan el binario, configuran el arranque automático al iniciar sesión y sincronizan la configuración BLE desde el portal.
+
+            ### Instalación manual
+            1. Descarga el binario de la tabla superior
             2. **macOS/Linux:** `chmod +x bumeet-agent-*`
-            3. Ejecuta el agente y configura el dispositivo BLE en `~/.config/bumeet-agent/config.json`
+            3. Abre el portal → **Device** → copia tu token de API y pégalo en `~/.config/bumeet-agent/config.json` (`%LOCALAPPDATA%\bumeet\bumeet-agent\config.json` en Windows)
 
             Documentación completa en [bumeet.es](https://bumeet.es).
 
