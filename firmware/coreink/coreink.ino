@@ -37,9 +37,9 @@ static const char* BATT_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567893";
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 static const uint8_t  CPU_FREQ_MHZ     = 80;
 static const int8_t   BLE_TX_POWER     = ESP_PWR_LVL_N12;  // -12 dBm
-// Advertising interval: 500 ms (low power, still connects quickly)
-static const uint16_t ADV_INTERVAL_MIN = 800;   // × 0.625 ms = 500 ms
-static const uint16_t ADV_INTERVAL_MAX = 800;
+// Advertising interval: 200 ms — more reactive, avoids modem missing wakeup window
+static const uint16_t ADV_INTERVAL_MIN = 320;   // × 0.625 ms = 200 ms
+static const uint16_t ADV_INTERVAL_MAX = 320;
 // Connection interval: 500 ms (low power while connected)
 static const uint16_t CONN_INTERVAL_MIN = 400;  // × 1.25 ms = 500 ms
 static const uint16_t CONN_INTERVAL_MAX = 400;
@@ -188,8 +188,16 @@ class WriteCallback : public NimBLECharacteristicCallbacks {
 void setup() {
     setCpuFrequencyMhz(CPU_FREQ_MHZ);
 
+    // Hold power on — without this the CoreInk powers off when the button is released
+    pinMode(GPIO_NUM_12, OUTPUT);
+    digitalWrite(GPIO_NUM_12, HIGH);
+
     auto cfg = M5.config();
     M5.begin(cfg);
+
+    // M5.begin() may reconfigure GPIO_NUM_12 — re-assert immediately after
+    pinMode(GPIO_NUM_12, OUTPUT);
+    digitalWrite(GPIO_NUM_12, HIGH);
     M5.Display.setRotation(0);
     M5.Display.setEpdMode(epd_mode_t::epd_quality);  // full refresh — eliminates ghosting
 
@@ -229,6 +237,9 @@ void setup() {
 
 // ─── Loop ─────────────────────────────────────────────────────────────────────
 void loop() {
+    // Re-assert power hold every tick — prevents accidental power-off if pin glitches
+    digitalWrite(GPIO_NUM_12, HIGH);
+
     M5.update();
 
     if (gNeedsRedraw) {
