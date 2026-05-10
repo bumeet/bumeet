@@ -1,0 +1,186 @@
+name: Quality
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Web (Next.js) ────────────────────────────────────────────────────────────
+  web:
+    name: "Web — lint / tsc / test"
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.changed_files, 'platform/apps/web') ||
+      github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: platform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter web lint
+
+      - name: Type-check
+        run: pnpm --filter web exec tsc --noEmit
+
+      - name: Test
+        run: pnpm --filter web test --run
+
+  # ── API (NestJS) ─────────────────────────────────────────────────────────────
+  api:
+    name: "API — lint / tsc / test"
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.changed_files, 'platform/apps/api') ||
+      github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: platform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter api lint
+
+      - name: Type-check
+        run: pnpm --filter api exec tsc --noEmit
+
+      - name: Test
+        run: pnpm --filter api test
+
+  # ── Python agent ──────────────────────────────────────────────────────────────
+  agent:
+    name: "Agent — ruff / mypy / pytest"
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.changed_files, 'src/bumeet_agent') ||
+      contains(github.event.pull_request.changed_files, 'pyproject.toml') ||
+      contains(github.event.pull_request.changed_files, 'tests/unit') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Format check (ruff)
+        run: ruff format --check .
+
+      - name: Type-check (mypy)
+        run: mypy src/bumeet_agent
+
+      - name: Unit tests (pytest)
+        run: pytest tests/unit -v
+
+  # ── Firmware (Arduino) ───────────────────────────────────────────────────────
+  firmware:
+    name: "Firmware — compile"
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.changed_files, 'firmware') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Add M5Stack board index
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/arduino/package_m5stack_index.json
+
+      - name: Install M5Stack core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install m5stack:esp32
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "M5Unified"
+          arduino-cli lib install "NimBLE-Arduino"
+
+      - name: Compile
+        run: |
+          arduino-cli compile \
+            --fqbn m5stack:esp32:m5stack_coreink \
+            firmware/coreink/coreink.ino
+
+  # ── Terraform ────────────────────────────────────────────────────────────────
+  terraform:
+    name: "Terraform — fmt / validate / tflint"
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.pull_request.changed_files, 'infra') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Format check
+        run: terraform fmt -check -recursive infra/
+
+      - name: Validate dev
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate prod
+        working-directory: infra/envs/prod
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Install tflint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: tflint
+        run: tflint --recursive --chdir=infra/
