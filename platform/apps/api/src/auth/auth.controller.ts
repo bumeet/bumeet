@@ -9,6 +9,8 @@ import { GoogleCalendarService } from '../integrations/google-calendar.service';
 import { MicrosoftCalendarService } from '../integrations/microsoft-calendar.service';
 import { SlackService } from '../integrations/slack.service';
 import { TeamsService } from '../integrations/teams.service';
+import { ZoomService } from '../integrations/zoom.service';
+import { WebexService } from '../integrations/webex.service';
 
 @Controller('auth')
 export class AuthController {
@@ -19,6 +21,8 @@ export class AuthController {
     private microsoftCalendar: MicrosoftCalendarService,
     private slack: SlackService,
     private teams: TeamsService,
+    private zoom: ZoomService,
+    private webex: WebexService,
   ) {}
 
   @Post('oauth-login')
@@ -129,6 +133,42 @@ export class AuthController {
     } catch (err) {
       console.error('Teams OAuth callback error:', err);
       return res.redirect(`${frontendUrl}/integrations?error=teams_failed`);
+    }
+  }
+
+  @Get('zoom/callback')
+  async zoomCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'http://localhost:3000';
+    if (error || !code) return res.redirect(`${frontendUrl}/integrations?error=zoom_denied`);
+    try {
+      await this.zoom.handleCallback(code, state);
+      return res.redirect(`${frontendUrl}/integrations?connected=zoom`);
+    } catch (err) {
+      console.error('Zoom OAuth callback error:', err);
+      return res.redirect(`${frontendUrl}/integrations?error=zoom_failed`);
+    }
+  }
+
+  @Get('webex/callback')
+  async webexCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('error') error: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.config.get('FRONTEND_URL') || 'http://localhost:3000';
+    if (error || !code) return res.redirect(`${frontendUrl}/integrations?error=webex_denied`);
+    try {
+      await this.webex.handleCallback(code, state);
+      return res.redirect(`${frontendUrl}/integrations?connected=webex`);
+    } catch (err) {
+      console.error('Webex OAuth callback error:', err);
+      return res.redirect(`${frontendUrl}/integrations?error=webex_failed`);
     }
   }
 

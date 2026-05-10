@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Req, Body, UseGuards } from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -23,7 +23,7 @@ export class IntegrationsController {
   }
 
   @Post('connect/:provider')
-  connect(@Req() req: any, @Param('provider') provider: string) {
+  connect(@Req() req: any, @Param('provider') provider: string, @Body() body: any) {
     if (provider === 'google') {
       return { redirectUrl: this.integrations.getGoogleAuthUrl(req.user.id) };
     }
@@ -35,6 +35,19 @@ export class IntegrationsController {
     }
     if (provider === 'slack') {
       return { redirectUrl: this.integrations.getSlackAuthUrl(req.user.id) };
+    }
+    if (provider === 'zoom') {
+      return { redirectUrl: this.integrations.getZoomAuthUrl(req.user.id) };
+    }
+    if (provider === 'webex') {
+      return { redirectUrl: this.integrations.getWebexAuthUrl(req.user.id) };
+    }
+    if (provider === 'apple') {
+      const { appleId, appPassword } = body ?? {};
+      if (!appleId || !appPassword) {
+        return { error: 'appleId and appPassword are required' };
+      }
+      return this.integrations.connectApple(req.user.id, appleId, appPassword);
     }
     return this.integrations.connectDemo(req.user.id, provider);
   }
@@ -64,6 +77,12 @@ export class IntegrationsController {
     }
     if (integration.provider === 'slack') {
       return this.integrations.getSlackPresence(req.user.id, id);
+    }
+    if (integration.provider === 'zoom') {
+      return this.integrations.getZoomPresence(req.user.id, id);
+    }
+    if (integration.provider === 'webex') {
+      return this.integrations.getWebexPresence(req.user.id, id);
     }
     return null;
   }

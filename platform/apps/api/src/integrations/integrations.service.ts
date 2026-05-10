@@ -4,6 +4,9 @@ import { GoogleCalendarService } from './google-calendar.service';
 import { MicrosoftCalendarService } from './microsoft-calendar.service';
 import { SlackService } from './slack.service';
 import { TeamsService } from './teams.service';
+import { ZoomService } from './zoom.service';
+import { WebexService } from './webex.service';
+import { AppleCalendarService } from './apple-calendar.service';
 
 export interface LiveStatus {
   busy: boolean;
@@ -23,6 +26,9 @@ export class IntegrationsService implements OnModuleInit {
     private microsoft: MicrosoftCalendarService,
     private slack: SlackService,
     private teams: TeamsService,
+    private zoom: ZoomService,
+    private webex: WebexService,
+    private apple: AppleCalendarService,
   ) {}
 
   // ── Auto-sync calendars every 15 min ──────────────────────────────────────
@@ -34,14 +40,16 @@ export class IntegrationsService implements OnModuleInit {
   private async syncAllCalendars() {
     try {
       const integrations = await this.prisma.integrationAccount.findMany({
-        where: { provider: { in: ['google', 'microsoft'] }, status: 'active' },
+        where: { provider: { in: ['google', 'microsoft', 'zoom', 'webex', 'apple'] }, status: 'active' },
       });
       await Promise.allSettled(
-        integrations.map((i) =>
-          i.provider === 'google'
-            ? this.google.syncEvents(i.id)
-            : this.microsoft.syncEvents(i.id),
-        ),
+        integrations.map((i) => {
+          if (i.provider === 'google') return this.google.syncEvents(i.id);
+          if (i.provider === 'microsoft') return this.microsoft.syncEvents(i.id);
+          if (i.provider === 'zoom') return this.zoom.syncEvents(i.id);
+          if (i.provider === 'webex') return this.webex.syncEvents(i.id);
+          if (i.provider === 'apple') return this.apple.syncEvents(i.id);
+        }),
       );
       this.logger.log(`Auto-synced ${integrations.length} calendar integration(s)`);
     } catch (e) {
@@ -49,14 +57,18 @@ export class IntegrationsService implements OnModuleInit {
     }
   }
 
-  // ── Unified live status (Slack + Teams + Calendar + Mic) ──────────────────
+  // ── Unified live status (Slack + Teams + Calendar + Mic + Zoom + Webex) ──────────────────
   async getLiveStatus(userId: string): Promise<LiveStatus> {
     const integrations = await this.getAll(userId);
 
-    const slackIntegrations = integrations.filter((i) => i.provider === 'slack');
-    const teamsIntegrations = integrations.filter((i) => i.provider === 'teams');
-    const msIntegrations    = integrations.filter((i) => i.provider === 'microsoft');
-    const hasPresence = slackIntegrations.length + teamsIntegrations.length + msIntegrations.length > 0;
+    const slackIntegrations  = integrations.filter((i) => i.provider === 'slack');
+    const teamsIntegrations  = integrations.filter((i) => i.provider === 'teams');
+    const msIntegrations     = integrations.filter((i) => i.provider === 'microsoft');
+    const zoomIntegrations   = integrations.filter((i) => i.provider === 'zoom');
+    const webexIntegrations  = integrations.filter((i) => i.provider === 'webex');
+    const hasPresence =
+      slackIntegrations.length + teamsIntegrations.length + msIntegrations.length +
+      zoomIntegrations.length + webexIntegrations.length > 0;
 
     // Fetch mic status and all remote checks in parallel
     const [userRow, calendarResult, ...presenceResults] = await Promise.allSettled([
@@ -74,6 +86,12 @@ export class IntegrationsService implements OnModuleInit {
       ...msIntegrations.map((i) =>
         this.microsoft.getPresence(i.id).then((p) => ({ ...p, _provider: 'microsoft' })),
       ),
+      ...zoomIntegrations.map((i) =>
+        this.zoom.getPresence(i.id).then((p) => ({ ...p, _provider: 'zoom' })),
+      ),
+      ...webexIntegrations.map((i) =>
+        this.webex.getPresence(i.id).then((p) => ({ ...p, _provider: 'webex' })),
+      ),
     ]);
 
     // Mic status is fresh if updated within the last 30 s (agent heartbeat every 25 s)
@@ -82,18 +100,29 @@ export class IntegrationsService implements OnModuleInit {
       && (Date.now() - micRow.micUpdatedAt.getTime() < 30_000);
     const micActive = Boolean(micFresh && micRow?.micActive);
 
-    // Priority 1: any inCall (Slack / Teams / Microsoft)
+    const providerLabel = (p: string) => {
+      switch (p) {
+        case 'slack':     return 'Slack';
+        case 'teams':     return 'Teams';
+        case 'microsoft': return 'Teams';
+        case 'zoom':      return 'Zoom';
+        case 'webex':     return 'Webex';
+        default:          return p;
+      }
+    };
+
+    // Priority 1: any inCall (Slack / Teams / Microsoft / Zoom / Webex)
     for (const r of presenceResults) {
       if (r.status === 'fulfilled') {
         const v = r.value as any;
         if (v?.inCall) {
-          const src = v._provider === 'slack' ? 'Slack' : 'Teams';
+          const src = providerLabel(v._provider);
           return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
         }
       }
     }
 
-    // Priority 2: Teams/Microsoft Busy or DoNotDisturb
+    // Priority 2: Teams/Microsoft Busy or DoNotDisturb (Zoom/Webex inCall already caught above)
     // Skip if calendar shows the event is still upcoming — Teams pre-sets presence to Busy
     // a few minutes before meetings start, which would mask the UPCOMING state.
     const calIsUpcoming = calendarResult.status === 'fulfilled' && calendarResult.value.upcoming;
@@ -102,7 +131,7 @@ export class IntegrationsService implements OnModuleInit {
         if (r.status === 'fulfilled') {
           const v = r.value as any;
           if (['Busy', 'DoNotDisturb'].includes(v?.availability ?? '')) {
-            const src = v._provider === 'slack' ? 'Slack' : 'Teams';
+            const src = providerLabel(v._provider);
             return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
           }
         }
@@ -119,7 +148,14 @@ export class IntegrationsService implements OnModuleInit {
     // Priority 4: Calendar event
     if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
       const cal = calendarResult.value;
-      const src = (cal.source ?? '').replace('google', 'Google Calendar').replace('microsoft', 'Outlook');
+      const calSourceMap: Record<string, string> = {
+        google: 'Google Calendar',
+        microsoft: 'Outlook',
+        zoom: 'Zoom',
+        webex: 'Webex',
+        apple: 'Apple Calendar',
+      };
+      const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
 
       // S-02 / S-05: Checks for active (non-upcoming) meetings
       if (!cal.upcoming) {
@@ -241,6 +277,34 @@ export class IntegrationsService implements OnModuleInit {
     return this.slack.getPresence(integrationId);
   }
 
+  getZoomAuthUrl(userId: string): string {
+    return this.zoom.getAuthUrl(userId);
+  }
+
+  async getZoomPresence(userId: string, integrationId: string) {
+    const integration = await this.prisma.integrationAccount.findFirst({
+      where: { id: integrationId, userId, provider: 'zoom' },
+    });
+    if (!integration) throw new NotFoundException('Integration not found');
+    return this.zoom.getPresence(integrationId);
+  }
+
+  getWebexAuthUrl(userId: string): string {
+    return this.webex.getAuthUrl(userId);
+  }
+
+  async getWebexPresence(userId: string, integrationId: string) {
+    const integration = await this.prisma.integrationAccount.findFirst({
+      where: { id: integrationId, userId, provider: 'webex' },
+    });
+    if (!integration) throw new NotFoundException('Integration not found');
+    return this.webex.getPresence(integrationId);
+  }
+
+  async connectApple(userId: string, appleId: string, appPassword: string) {
+    return this.apple.connect(userId, appleId, appPassword);
+  }
+
   /** Returns whether the user has an active or upcoming (≤5 min) calendar event. */
   async getBusyStatus(userId: string): Promise<{ busy: boolean; upcoming: boolean; reason: string | null; source: string | null; endAt: string | null; startAt: string | null }> {
     const now = new Date();
@@ -301,6 +365,21 @@ export class IntegrationsService implements OnModuleInit {
 
     if (integration.provider === 'slack') {
       await this.slack.syncEvents(integrationId);
+      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
+    }
+
+    if (integration.provider === 'zoom') {
+      await this.zoom.syncEvents(integrationId);
+      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
+    }
+
+    if (integration.provider === 'webex') {
+      await this.webex.syncEvents(integrationId);
+      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
+    }
+
+    if (integration.provider === 'apple') {
+      await this.apple.syncEvents(integrationId);
       return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
     }
 
