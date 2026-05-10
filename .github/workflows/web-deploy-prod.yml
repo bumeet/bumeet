@@ -12,6 +12,10 @@ on:
       - '.github/workflows/web-deploy-prod.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   PROD_URL: https://bumeet.es
 
