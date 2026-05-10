@@ -5,6 +5,13 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 
+// Mock argon2 so tests never touch the native binary
+jest.mock('argon2', () => ({
+  hash: jest.fn().mockResolvedValue('$argon2id$mocked'),
+  verify: jest.fn(),
+}));
+import * as argon2 from 'argon2';
+
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
@@ -35,20 +42,27 @@ describe('AuthService', () => {
 
   it('register throws ConflictException if email exists', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ id: '1', email: 'test@test.com' });
-    await expect(service.register({ email: 'test@test.com', name: 'Test', password: 'password123' })).rejects.toThrow(ConflictException);
+    await expect(
+      service.register({ email: 'test@test.com', name: 'Test', password: 'password123' }),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('login throws UnauthorizedException for wrong password', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: '1',
       email: 'test@test.com',
-      passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$invalid',
+      passwordHash: '$argon2id$mocked',
     });
-    await expect(service.login({ email: 'test@test.com', password: 'wrongpassword' })).rejects.toThrow(UnauthorizedException);
+    (argon2.verify as jest.Mock).mockResolvedValue(false);
+    await expect(
+      service.login({ email: 'test@test.com', password: 'wrongpassword' }),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('login throws UnauthorizedException when user not found', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.login({ email: 'notfound@test.com', password: 'password' })).rejects.toThrow(UnauthorizedException);
+    await expect(
+      service.login({ email: 'notfound@test.com', password: 'password' }),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });
