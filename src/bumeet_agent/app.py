@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import secrets
 import signal
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Any
 import aiohttp
 
 from bumeet_agent.bootstrap import build_container
-from bumeet_agent.config import ApiSettings, BleSettings, SettingsStore
+from bumeet_agent.config import ApiSettings, AppSettings, BleSettings, SettingsStore
 from bumeet_agent.detection.base import HardwareDetector
 from bumeet_agent.detection.service import AgentOrchestrator
 from bumeet_agent.events.models import AgentEvent, EventTopic
@@ -63,6 +64,78 @@ async def _fetch_remote_ble_config(api: ApiSettings) -> BleSettings | None:
     return None
 
 
+_PAIR_ALPHABET = "BCDFGHJKMNPQRSTVWXYZ2345689"
+_PAIR_TTL = 300  # seconds
+
+
+def _generate_pairing_code() -> str:
+    return "".join(secrets.choice(_PAIR_ALPHABET) for _ in range(6))
+
+
+async def _pair_with_portal(api: ApiSettings, settings_store: SettingsStore) -> bool:
+    """Show a pairing code, wait for the user to approve it in the portal.
+
+    Returns True if pairing succeeded and the token was saved to disk.
+    """
+    code = _generate_pairing_code()
+    register_url = f"{api.url}/agent/pair/register"
+    status_url = f"{api.url}/agent/pair/status"
+
+    try:
+        async with aiohttp.ClientSession() as session, session.post(
+            register_url,
+            json={"code": code},
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status not in (200, 201):
+                logger.warning("Could not register pairing code (HTTP %s)", resp.status)
+                return False
+    except Exception as exc:
+        logger.warning("Could not reach API to register pairing code: %s", exc)
+        return False
+
+    print("\n" + "=" * 50)
+    print("  BUMEET — Link this agent to your account")
+    print("=" * 50)
+    print("\n  1. Open https://bumeet.es and go to  Device")
+    print("  2. Click 'Link Agent' and enter the code:\n")
+    print(f"          {code}")
+    print("\n  Waiting for approval (expires in 5 min)…")
+    print("=" * 50 + "\n")
+
+    deadline = asyncio.get_event_loop().time() + _PAIR_TTL
+    async with aiohttp.ClientSession() as session:
+        while asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(5)
+            try:
+                async with session.get(
+                    status_url,
+                    params={"code": code},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    if resp.status != 200:
+                        continue
+                    data: dict[str, Any] = await resp.json()
+                    status: str = data.get("status", "pending")
+                    if status == "approved":
+                        token: str = data.get("token", "")
+                        if token:
+                            current = settings_store.load()
+                            updated = current.model_copy(
+                                update={"api": current.api.model_copy(update={"token": token})}
+                            )
+                            settings_store.save(updated)
+                            print("\n✓ Agent linked successfully!\n")
+                            return True
+                    elif status == "expired":
+                        break
+            except Exception:
+                pass
+
+    print("\n  Code expired. Restart the agent to try again.\n")
+    return False
+
+
 async def run(
     config_path: Path | None = None,
     *,
@@ -83,9 +156,20 @@ async def run(
         )
         return result.exit_code
 
-    # Load settings then optionally override BLE config from the cloud portal.
-    settings = SettingsStore(config_path).load()
-    if settings.api.is_configured and not settings.ble.is_configured:
+    # Load settings. If no API token yet, run the pairing flow first.
+    store = SettingsStore(config_path)
+    settings = store.load()
+
+    default_api_url = AppSettings().api.url
+    if not settings.api.is_configured:
+        api_for_pairing = settings.api.model_copy(update={"url": default_api_url})
+        paired = await _pair_with_portal(api_for_pairing, store)
+        if not paired:
+            return 1
+        settings = store.load()  # reload with saved token
+
+    # Optionally override BLE config from the portal.
+    if not settings.ble.is_configured:
         remote_ble = await _fetch_remote_ble_config(settings.api)
         if remote_ble:
             logger.info("BLE config loaded from portal: %s", remote_ble.device_address)

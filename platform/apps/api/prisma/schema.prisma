@@ -21,6 +21,7 @@ model User {
   micUpdatedAt          DateTime?
   bleDeviceAddress      String?
   bleCharacteristicUuid String?
+  agentToken            String?   @unique
   createdAt             DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

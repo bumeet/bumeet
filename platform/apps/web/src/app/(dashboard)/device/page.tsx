@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Bluetooth, Terminal, CheckCircle, AlertCircle,
-  Loader2, Download, Copy, Check, Monitor,
+  Loader2, Download, Copy, Check, Monitor, Link,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +44,12 @@ export default function DevicePage() {
   const [uuid, setUuid] = useState(DEFAULT_CHAR_UUID);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+
+  // Pairing code state
+  const [pairCode, setPairCode] = useState('');
+  const [pairStatus, setPairStatus] = useState<'idle' | 'linking' | 'done' | 'error'>('idle');
+  const pairRef = useRef(pairCode);
+  pairRef.current = pairCode;
 
   const token = (session as any)?.apiToken as string | undefined;
 
@@ -97,6 +103,21 @@ export default function DevicePage() {
       setSaveStatus('error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function linkAgent() {
+    if (!token || pairCode.trim().length !== 6) return;
+    setPairStatus('linking');
+    try {
+      const res = await fetch(`${API_URL}/agent/pair/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: pairCode.trim().toUpperCase() }),
+      });
+      setPairStatus(res.ok ? 'done' : 'error');
+    } catch {
+      setPairStatus('error');
     }
   }
 
@@ -181,10 +202,53 @@ export default function DevicePage() {
         )}
       </section>
 
-      {/* Step 2 — BLE config */}
+      {/* Step 2 — Link agent (pairing code) */}
       <section className="mb-8">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">2</span>
+          <h2 className="font-semibold text-gray-800">Link the agent to your account</h2>
+          {pairStatus === 'done' && <CheckCircle size={16} className="text-green-500" />}
+        </div>
+        <div className="ml-8 space-y-3">
+          <p className="text-sm text-gray-500">
+            The agent displays a 6-character code when it starts. Enter it below — no token copy-paste needed.
+          </p>
+          <div className="flex gap-2 items-start">
+            <input
+              type="text"
+              maxLength={6}
+              value={pairCode}
+              onChange={e => { setPairCode(e.target.value.toUpperCase()); setPairStatus('idle'); }}
+              placeholder="A3K7P2"
+              className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest text-center uppercase focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button
+              onClick={linkAgent}
+              disabled={pairStatus === 'linking' || pairCode.trim().length !== 6}
+              className="px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+            >
+              {pairStatus === 'linking'
+                ? <><Loader2 size={14} className="animate-spin" /> Linking…</>
+                : <><Link size={14} /> Link agent</>}
+            </button>
+          </div>
+          {pairStatus === 'done' && (
+            <p className="text-sm text-green-600 flex items-center gap-1">
+              <CheckCircle size={14} /> Agent linked — the agent will connect automatically
+            </p>
+          )}
+          {pairStatus === 'error' && (
+            <p className="text-sm text-red-500 flex items-center gap-1">
+              <AlertCircle size={14} /> Code not found or expired — check the agent log and try again
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Step 3 — BLE config */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">3</span>
           <h2 className="font-semibold text-gray-800">Configure your display</h2>
           {isPaired && <CheckCircle size={16} className="text-green-500" />}
         </div>
@@ -250,10 +314,10 @@ export default function DevicePage() {
         </div>
       </section>
 
-      {/* Step 3 — Verify */}
+      {/* Step 4 — Verify */}
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">3</span>
+          <span className="w-6 h-6 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center">4</span>
           <h2 className="font-semibold text-gray-800">Verify the connection</h2>
         </div>
         <div className="ml-8 bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
