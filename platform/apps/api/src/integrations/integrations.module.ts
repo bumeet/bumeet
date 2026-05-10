@@ -7,7 +7,6 @@ import { SlackService } from './slack.service';
 import { TeamsService } from './teams.service';
 import { ZoomService } from './zoom.service';
 import { WebexService } from './webex.service';
-import { AppleCalendarService } from './apple-calendar.service';
 
 @Module({
   providers: [
@@ -18,7 +17,6 @@ import { AppleCalendarService } from './apple-calendar.service';
     TeamsService,
     ZoomService,
     WebexService,
-    AppleCalendarService,
   ],
   controllers: [IntegrationsController],
   exports: [
@@ -29,7 +27,6 @@ import { AppleCalendarService } from './apple-calendar.service';
     TeamsService,
     ZoomService,
     WebexService,
-    AppleCalendarService,
   ],
 })
 export class IntegrationsModule {}

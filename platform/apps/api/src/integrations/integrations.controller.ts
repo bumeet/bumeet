@@ -42,13 +42,6 @@ export class IntegrationsController {
     if (provider === 'webex') {
       return { redirectUrl: this.integrations.getWebexAuthUrl(req.user.id) };
     }
-    if (provider === 'apple') {
-      const { appleId, appPassword } = body ?? {};
-      if (!appleId || !appPassword) {
-        return { error: 'appleId and appPassword are required' };
-      }
-      return this.integrations.connectApple(req.user.id, appleId, appPassword);
-    }
     return this.integrations.connectDemo(req.user.id, provider);
   }
 

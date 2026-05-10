@@ -6,7 +6,6 @@ import { SlackService } from './slack.service';
 import { TeamsService } from './teams.service';
 import { ZoomService } from './zoom.service';
 import { WebexService } from './webex.service';
-import { AppleCalendarService } from './apple-calendar.service';
 
 export interface LiveStatus {
   busy: boolean;
@@ -28,7 +27,6 @@ export class IntegrationsService implements OnModuleInit {
     private teams: TeamsService,
     private zoom: ZoomService,
     private webex: WebexService,
-    private apple: AppleCalendarService,
   ) {}
 
   // ── Auto-sync calendars every 15 min ──────────────────────────────────────
@@ -40,7 +38,7 @@ export class IntegrationsService implements OnModuleInit {
   private async syncAllCalendars() {
     try {
       const integrations = await this.prisma.integrationAccount.findMany({
-        where: { provider: { in: ['google', 'microsoft', 'zoom', 'webex', 'apple'] }, status: 'active' },
+        where: { provider: { in: ['google', 'microsoft', 'zoom', 'webex'] }, status: 'active' },
       });
       await Promise.allSettled(
         integrations.map((i) => {
@@ -48,7 +46,6 @@ export class IntegrationsService implements OnModuleInit {
           if (i.provider === 'microsoft') return this.microsoft.syncEvents(i.id);
           if (i.provider === 'zoom') return this.zoom.syncEvents(i.id);
           if (i.provider === 'webex') return this.webex.syncEvents(i.id);
-          if (i.provider === 'apple') return this.apple.syncEvents(i.id);
         }),
       );
       this.logger.log(`Auto-synced ${integrations.length} calendar integration(s)`);
@@ -153,7 +150,6 @@ export class IntegrationsService implements OnModuleInit {
         microsoft: 'Outlook',
         zoom: 'Zoom',
         webex: 'Webex',
-        apple: 'Apple Calendar',
       };
       const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
 
@@ -301,10 +297,6 @@ export class IntegrationsService implements OnModuleInit {
     return this.webex.getPresence(integrationId);
   }
 
-  async connectApple(userId: string, appleId: string, appPassword: string) {
-    return this.apple.connect(userId, appleId, appPassword);
-  }
-
   /** Returns whether the user has an active or upcoming (≤5 min) calendar event. */
   async getBusyStatus(userId: string): Promise<{ busy: boolean; upcoming: boolean; reason: string | null; source: string | null; endAt: string | null; startAt: string | null }> {
     const now = new Date();
@@ -375,11 +367,6 @@ export class IntegrationsService implements OnModuleInit {
 
     if (integration.provider === 'webex') {
       await this.webex.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
-    }
-
-    if (integration.provider === 'apple') {
-      await this.apple.syncEvents(integrationId);
       return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
     }
 
