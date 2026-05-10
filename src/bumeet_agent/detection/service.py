@@ -85,7 +85,8 @@ class AgentOrchestrator:
 	async def _api_poll_loop(self) -> None:
 		assert self._api is not None
 		headers = {"Authorization": f"Bearer {self._api.token}"}
-		url = f"{self._api.url}/integrations/busy"
+		# live-status includes real-time Slack/Teams/Zoom/Webex presence — /busy only checks calendar
+		url = f"{self._api.url}/integrations/live-status"
 		interval = self._api.poll_interval_seconds
 		async with aiohttp.ClientSession(headers=headers) as session:
 			while True:
@@ -95,64 +96,24 @@ class AgentOrchestrator:
 							data: dict[str, Any] = await resp.json()
 							busy: bool = data.get("busy", False)
 							upcoming: bool = data.get("upcoming", False)
-							# Treat upcoming as not-busy for hw combination — payload handled separately
 							effective_busy = busy and not upcoming
 							if effective_busy != self._last_api_busy or upcoming != self._last_api_upcoming:
 								self._last_api_busy = effective_busy
 								self._last_api_upcoming = upcoming
-								await self._push_combined_state(api_data=data if busy else None)
+								await self._push_combined_state(api_data=data)
 				except (aiohttp.ClientError, asyncio.TimeoutError):
 					pass
 				await asyncio.sleep(interval)
 
 	async def _push_combined_state(self, api_data: dict[str, Any] | None = None) -> None:
-		"""Send payload to CoreInk based on hardware OR API busy/upcoming state."""
-		from datetime import datetime, timezone
-
-		def _fmt_source(raw: str) -> str:
-			return raw.replace("google", "Google Calendar").replace("microsoft", "Outlook").replace("slack", "Slack").replace("teams", "Teams")
-
-		# UPCOMING: calendar says meeting starts within 5 min and hardware is not active
-		# Hardware (mic/camera) takes priority — if user is already in a call, show BUSY
-		if self._last_api_upcoming and not self._last_hw_busy and api_data:
-			source = _fmt_source(api_data.get("source") or "")
-			start_at = api_data.get("startAt") or ""
-			start_str = ""
-			if start_at:
-				try:
-					dt = datetime.fromisoformat(start_at.replace("Z", "+00:00")).astimezone()
-					start_str = dt.strftime("%H:%M")
-				except Exception:
-					pass
-			if source and start_str:
-				raw = f"UPCOMING · {source} · starts {start_str}"
-			elif start_str:
-				raw = f"UPCOMING · starts {start_str}"
-			else:
-				raw = "UPCOMING"
+		"""Send payload to CoreInk. live-status already builds the final payload string."""
+		# If hardware (mic/cam) is active, override with BUSY · Call regardless of API state
+		if self._last_hw_busy:
+			payload = b"BUSY"
+		elif api_data and (api_data.get("busy") or api_data.get("upcoming")):
+			# payload field from live-status is the ready-to-send string (e.g. "BUSY · Slack")
+			raw: str = api_data.get("payload") or ("BUSY" if api_data.get("busy") else "FREE")
 			payload = raw.encode("utf-8")
-
-		elif self._last_hw_busy or self._last_api_busy:
-			if api_data and api_data.get("busy"):
-				source = _fmt_source(api_data.get("source") or "")
-				end_at = api_data.get("endAt") or ""
-				end_str = ""
-				if end_at:
-					try:
-						dt = datetime.fromisoformat(end_at.replace("Z", "+00:00")).astimezone()
-						end_str = dt.strftime("%H:%M")
-					except Exception:
-						pass
-				if source and end_str:
-					raw = f"BUSY · {source} · ends {end_str}"
-				elif source:
-					raw = f"BUSY · {source}"
-				else:
-					raw = "BUSY"
-				payload = raw.encode("utf-8")
-			else:
-				payload = b"BUSY"
-
 		else:
 			payload = b"FREE"
 
