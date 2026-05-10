@@ -76,6 +76,19 @@ module "redis" {
   tags = local.common_tags
 }
 
+# ── Releases Storage (public blob for agent installers) ───────────────────────
+# One shared storage account across environments; releases are prod artefacts.
+
+module "releases_storage" {
+  source = "./modules/releases_storage"
+
+  # stbumeetreleases — 16 chars, globally unique, alphanumeric only
+  name                = "stbumeetreleases"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  tags                = local.common_tags
+}
+
 # ── Container Registry ────────────────────────────────────────────────────────
 
 module "container_registry" {

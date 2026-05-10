@@ -24,34 +24,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$Repo        = "bumeet/bumeet"
-$AssetName   = "bumeet-agent-windows.exe"
-$InstallDir  = "$env:LOCALAPPDATA\BUMEET"
-$BinaryPath  = "$InstallDir\bumeet-agent.exe"
-$ConfigDir   = "$env:LOCALAPPDATA\bumeet\bumeet-agent"
-$ConfigFile  = "$ConfigDir\config.json"
-$LogDir      = "$env:LOCALAPPDATA\BUMEET\Logs"
-$TaskName    = "BUMEET Agent"
+$ReleasesBaseUrl = "https://stbumeetreleases.blob.core.windows.net/releases"
+$AssetName       = "bumeet-agent-windows.exe"
+$InstallDir      = "$env:LOCALAPPDATA\BUMEET"
+$BinaryPath      = "$InstallDir\bumeet-agent.exe"
+$ConfigDir       = "$env:LOCALAPPDATA\bumeet\bumeet-agent"
+$ConfigFile      = "$ConfigDir\config.json"
+$LogDir          = "$env:LOCALAPPDATA\BUMEET\Logs"
+$TaskName        = "BUMEET Agent"
 
 Write-Host "→ Installing BUMEET agent for Windows" -ForegroundColor Cyan
 
-# ── Fetch latest release tag ──────────────────────────────────────────────────
-$release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"
-$tag     = $release.tag_name
-Write-Host "→ Latest release: $tag"
-
-$asset = $release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
-if (-not $asset) {
-    throw "Asset '$AssetName' not found in release $tag"
-}
-
-# ── Download binary ───────────────────────────────────────────────────────────
+# ── Download latest binary from Azure Blob Storage (public, no auth needed) ──
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path $LogDir     | Out-Null
 
 $tmpFile = [System.IO.Path]::GetTempFileName() + ".exe"
-Write-Host "→ Downloading $AssetName …"
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpFile -UseBasicParsing
+Write-Host "→ Downloading latest binary …"
+Invoke-WebRequest -Uri "$ReleasesBaseUrl/latest/$AssetName" -OutFile $tmpFile -UseBasicParsing
 
 # Stop the agent if it is currently running
 $existing = Get-Process -Name "bumeet-agent" -ErrorAction SilentlyContinue

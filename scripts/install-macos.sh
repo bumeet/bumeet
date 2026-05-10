@@ -4,7 +4,7 @@
 #        or:  bash scripts/install-macos.sh [--token YOUR_API_TOKEN]
 set -euo pipefail
 
-REPO="bumeet/bumeet"
+RELEASES_BASE_URL="https://stbumeetreleases.blob.core.windows.net/releases"
 BINARY_NAME="bumeet-agent"
 INSTALL_DIR="/usr/local/bin"
 PLIST_LABEL="es.bumeet.agent"
@@ -25,27 +25,12 @@ done
 
 echo "→ Installing BUMEET agent for macOS"
 
-# ── Download latest release binary ───────────────────────────────────────────
-LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['tag_name'])")
-
-echo "→ Latest release: $LATEST"
-
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-# Use gh CLI for authenticated download (works with private repos)
-if ! command -v gh &>/dev/null; then
-  echo "Error: GitHub CLI (gh) is required. Install it with:"
-  echo "  brew install gh"
-  echo "Then run: gh auth login"
-  exit 1
-fi
-
-gh release download "$LATEST" \
-  --repo "$REPO" \
-  --pattern "bumeet-agent-macos" \
-  --dir "$TMP"
+# ── Download latest binary from Azure Blob Storage (public, no auth needed) ──
+echo "→ Downloading latest binary …"
+curl -fsSL "${RELEASES_BASE_URL}/latest/bumeet-agent-macos" -o "$TMP/$BINARY_NAME"
 chmod +x "$TMP/$BINARY_NAME"
 
 # ── Install binary ────────────────────────────────────────────────────────────

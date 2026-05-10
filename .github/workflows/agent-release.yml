@@ -146,3 +146,46 @@ jobs:
             dist/bumeet-agent-linux/bumeet-agent-linux
           draft: false
           prerelease: false
+
+      - name: Upload binaries to Azure Blob Storage
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_RELEASES_STORAGE_CONNECTION_STRING }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          # Upload versioned copy  (e.g. /v0.1.1/bumeet-agent-macos)
+          az storage blob upload \
+            --container-name releases \
+            --name "${TAG}/bumeet-agent-macos" \
+            --file dist/bumeet-agent-macos/bumeet-agent-macos \
+            --overwrite
+
+          az storage blob upload \
+            --container-name releases \
+            --name "${TAG}/bumeet-agent-windows.exe" \
+            --file dist/bumeet-agent-windows/bumeet-agent-windows.exe \
+            --overwrite
+
+          az storage blob upload \
+            --container-name releases \
+            --name "${TAG}/bumeet-agent-linux" \
+            --file dist/bumeet-agent-linux/bumeet-agent-linux \
+            --overwrite
+
+          # Update the stable 'latest' pointer
+          az storage blob copy start \
+            --destination-container releases \
+            --destination-blob "latest/bumeet-agent-macos" \
+            --source-container releases \
+            --source-blob "${TAG}/bumeet-agent-macos"
+
+          az storage blob copy start \
+            --destination-container releases \
+            --destination-blob "latest/bumeet-agent-windows.exe" \
+            --source-container releases \
+            --source-blob "${TAG}/bumeet-agent-windows.exe"
+
+          az storage blob copy start \
+            --destination-container releases \
+            --destination-blob "latest/bumeet-agent-linux" \
+            --source-container releases \
+            --source-blob "${TAG}/bumeet-agent-linux"
