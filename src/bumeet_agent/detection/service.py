@@ -7,10 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-try:
-    import aiohttp
-except ImportError:
-    aiohttp = None  # type: ignore
+import aiohttp
 
 from bumeet_agent.ble.client import BleClient
 from bumeet_agent.config import ApiSettings
@@ -74,7 +71,7 @@ class AgentOrchestrator:
 
     async def start_api_polling(self) -> None:
         """Poll /integrations/busy on interval and push to CoreInk."""
-        if not self._api or not self._api.is_configured or aiohttp is None:
+        if not self._api or not self._api.is_configured:
             return
         self._api_poll_task = asyncio.create_task(self._api_poll_loop())
 
