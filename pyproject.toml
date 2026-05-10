@@ -45,6 +45,9 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]  # line length handled by formatter
 
+[tool.ruff.lint.per-file-ignores]
+"src/bumeet_agent/detection/macos.py" = ["N816"]  # CoreAudio constants follow Apple naming
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

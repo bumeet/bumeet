@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 # ── CoreAudio constants (verified against macOS 15.4 SDK AudioHardware.h) ────
 
+
 def _fourcc(s: str) -> int:
     """Convert 4-char string to CoreAudio FourCC big-endian uint32."""
     b = s.encode("ascii")
@@ -143,7 +144,9 @@ def _poll_microphone() -> bool:
         return False
     try:
         for device_id in _audio_get_devices(lib):
-            if _audio_device_has_input_streams(lib, device_id) and _audio_device_is_running(lib, device_id):
+            if _audio_device_has_input_streams(lib, device_id) and _audio_device_is_running(
+                lib, device_id
+            ):
                 return True
     except Exception:
         logger.exception("CoreAudio mic check raised an unexpected exception")
@@ -212,7 +215,7 @@ class MacOSHardwareDetector(HardwareDetector):
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=self._poll_interval)
                 break  # stop was requested; exit cleanly
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # normal poll interval elapsed; continue
 
     async def stop(self) -> None:

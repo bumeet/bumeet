@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from bumeet_agent.ble.protocol import PresenceState, payload_for_state
 from bumeet_agent.config import BleSettings
@@ -47,13 +48,17 @@ class BleClient:
 
     async def connect(self) -> None:
         if not self._settings.is_configured:
-            raise ValueError("BLE settings are incomplete. device_address and characteristic_uuid are required.")
+            raise ValueError(
+                "BLE settings are incomplete. device_address and characteristic_uuid are required."
+            )
 
         async with self._lock:
             if self.is_connected:
                 return
 
-            await self._event_bus.emit(EventTopic.BLE_CONNECTING.value, address=self._settings.device_address)
+            await self._event_bus.emit(
+                EventTopic.BLE_CONNECTING.value, address=self._settings.device_address
+            )
             client = self._client_factory(self._settings.device_address)
 
             try:
@@ -67,7 +72,9 @@ class BleClient:
                 raise
 
             self._client = client
-            await self._event_bus.emit(EventTopic.BLE_CONNECTED.value, address=self._settings.device_address)
+            await self._event_bus.emit(
+                EventTopic.BLE_CONNECTED.value, address=self._settings.device_address
+            )
 
     async def disconnect(self) -> None:
         async with self._lock:
@@ -144,11 +151,13 @@ class BleClient:
                 logger.debug("BLE scan attempt %d for %s", attempt, self._settings.device_address)
                 found = await self._scan_for_device(timeout=_SCAN_TIMEOUT_S)
                 if not found:
-                    logger.debug("Device not found in scan, retrying in %ds", int(_RETRY_INTERVAL_S))
+                    logger.debug(
+                        "Device not found in scan, retrying in %ds", int(_RETRY_INTERVAL_S)
+                    )
                     await asyncio.sleep(_RETRY_INTERVAL_S)
                     continue
 
-                await self.disconnect()   # clean up any stale connection
+                await self.disconnect()  # clean up any stale connection
                 await self.send_payload(payload)
                 await self.disconnect()
                 logger.debug("Payload delivered after %d attempt(s)", attempt)
@@ -178,7 +187,7 @@ class BleClient:
             async with BleakScanner(detection_callback=_cb):
                 await asyncio.wait_for(found_event.wait(), timeout=timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
 
     def _default_client_factory(self, address: str) -> Any:

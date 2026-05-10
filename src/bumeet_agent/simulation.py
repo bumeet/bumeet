@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
 
 from bumeet_agent.ble.simulated import FakeBleakClient, build_fake_client_factory
 from bumeet_agent.bootstrap import AgentContainer, build_container, build_simulated_settings
-from bumeet_agent.detection.service import AgentOrchestrator, SimulatedHardwareDetector, build_simulation_steps
+from bumeet_agent.detection.service import (
+    AgentOrchestrator,
+    SimulatedHardwareDetector,
+    build_simulation_steps,
+)
 from bumeet_agent.events.models import AgentEvent, EventTopic
-
 
 EventConsumer = Callable[[AgentEvent], Awaitable[None] | None]
 
@@ -60,9 +63,13 @@ async def run_simulation_session(
         state_machine=container.state_machine,
         ble_client=container.ble_client,
     )
-    detector = SimulatedHardwareDetector(build_simulation_steps(name=scenario, delay_scale=delay_scale))
+    detector = SimulatedHardwareDetector(
+        build_simulation_steps(name=scenario, delay_scale=delay_scale)
+    )
 
-    await container.event_bus.emit(EventTopic.SIMULATION_STARTED.value, scenario=scenario, delay_scale=delay_scale)
+    await container.event_bus.emit(
+        EventTopic.SIMULATION_STARTED.value, scenario=scenario, delay_scale=delay_scale
+    )
 
     try:
         await detector.start(orchestrator.handle_snapshot)
