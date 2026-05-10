@@ -9,23 +9,25 @@ import sys
 from pathlib import Path
 
 from bumeet_agent.bootstrap import build_container
+from bumeet_agent.detection.base import HardwareDetector
 from bumeet_agent.detection.service import AgentOrchestrator
 from bumeet_agent.events.models import AgentEvent, EventTopic
 from bumeet_agent.logging import configure_logging, get_logger
 from bumeet_agent.simulation import run_simulation_session
 from bumeet_agent.ui.simulator import launch_simulation_viewer
 
-
 logger = get_logger(__name__)
 
 
-def _build_detector(poll_interval: float):
+def _build_detector(poll_interval: float) -> HardwareDetector:
     """Return the platform-appropriate hardware detector."""
     if sys.platform == "darwin":
         from bumeet_agent.detection.macos import MacOSHardwareDetector
+
         return MacOSHardwareDetector(poll_interval=poll_interval)
     if sys.platform == "win32":
         from bumeet_agent.detection.windows import WindowsHardwareDetector
+
         return WindowsHardwareDetector()
     raise RuntimeError(f"No hardware detector available for platform: {sys.platform}")
 
@@ -38,6 +40,7 @@ async def run(
     delay_scale: float = 1.0,
 ) -> int:
     if simulate:
+
         async def log_event(event: AgentEvent) -> None:
             logger.info("event=%s payload=%s", event.topic, event.payload)
 
@@ -51,10 +54,10 @@ async def run(
 
     container = build_container(config_path)
 
-    async def log_event(event: AgentEvent) -> None:
+    async def _log_container_event(event: AgentEvent) -> None:
         logger.info("event=%s payload=%s", event.topic, event.payload)
 
-    await container.event_bus.subscribe("*", log_event)
+    await container.event_bus.subscribe("*", _log_container_event)
     await container.event_bus.emit(
         EventTopic.APP_STARTED.value,
         config_path=str(container.settings_store.path),
@@ -94,7 +97,7 @@ async def run(
         await detector.stop()
         try:
             await asyncio.wait_for(detection_task, timeout=3.0)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (TimeoutError, asyncio.CancelledError):
             detection_task.cancel()
         await orchestrator.stop_api_polling()
         await container.event_bus.emit(EventTopic.APP_STOPPING.value)
@@ -105,8 +108,12 @@ async def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="BUMEET local agent")
-    parser.add_argument("--config", type=Path, default=None, help="Path to the local settings JSON file")
-    parser.add_argument("--simulate", action="store_true", help="Run a full offline simulation without BLE hardware")
+    parser.add_argument(
+        "--config", type=Path, default=None, help="Path to the local settings JSON file"
+    )
+    parser.add_argument(
+        "--simulate", action="store_true", help="Run a full offline simulation without BLE hardware"
+    )
     parser.add_argument(
         "--scenario",
         choices=["default", "bounce", "camera-only"],
@@ -119,7 +126,9 @@ def main() -> int:
         default=1.0,
         help="Scale factor for simulation delays; use 0 for near-instant runs",
     )
-    parser.add_argument("--simulate-ui", action="store_true", help="Launch a desktop UI to visualize the simulation")
+    parser.add_argument(
+        "--simulate-ui", action="store_true", help="Launch a desktop UI to visualize the simulation"
+    )
     args = parser.parse_args()
 
     configure_logging()

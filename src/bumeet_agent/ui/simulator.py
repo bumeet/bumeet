@@ -67,9 +67,13 @@ class SimulationViewer:
         ).grid(row=0, column=1, sticky="w")
 
         ttk.Label(header, text="Delay scale").grid(row=0, column=2, sticky="w", padx=(16, 8))
-        ttk.Entry(header, textvariable=self._delay_scale_var, width=8).grid(row=0, column=3, sticky="w")
+        ttk.Entry(header, textvariable=self._delay_scale_var, width=8).grid(
+            row=0, column=3, sticky="w"
+        )
 
-        ttk.Button(header, text="Run simulation", command=self._start_simulation).grid(row=0, column=4, padx=(16, 8))
+        ttk.Button(header, text="Run simulation", command=self._start_simulation).grid(
+            row=0, column=4, padx=(16, 8)
+        )
         ttk.Button(header, text="Clear log", command=self._clear_log).grid(row=0, column=5)
 
         status_frame = ttk.LabelFrame(container, text="Current state", padding=12)
@@ -84,8 +88,12 @@ class SimulationViewer:
             ("Events", self._event_count_var),
         ]
         for index, (label, value) in enumerate(items):
-            ttk.Label(status_frame, text=label).grid(row=0, column=index * 2, sticky="w", padx=(0, 8))
-            ttk.Label(status_frame, textvariable=value).grid(row=0, column=index * 2 + 1, sticky="w", padx=(0, 18))
+            ttk.Label(status_frame, text=label).grid(
+                row=0, column=index * 2, sticky="w", padx=(0, 8)
+            )
+            ttk.Label(status_frame, textvariable=value).grid(
+                row=0, column=index * 2 + 1, sticky="w", padx=(0, 18)
+            )
 
         body = ttk.Panedwindow(container, orient=tk.HORIZONTAL)
         body.grid(row=2, column=0, sticky="nsew")
@@ -107,7 +115,9 @@ class SimulationViewer:
         log_scroll.grid(row=0, column=1, sticky="ns")
         self._log_widget.configure(yscrollcommand=log_scroll.set)
 
-        ttk.Label(right, text="Legend", font=("Helvetica", 12, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 8))
+        ttk.Label(right, text="Legend", font=("Helvetica", 12, "bold")).grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
         legend = ttk.Label(
             right,
             text=(

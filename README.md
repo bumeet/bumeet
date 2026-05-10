@@ -1,53 +1,106 @@
-# BUMEET Local Agent
+# BUMEET
 
-Agente local multiplataforma en Python para detectar uso de camara o microfono y sincronizar el estado con un dispositivo BLE.
+E-ink presence display for office doors. Shows FREE / BUSY / UPCOMING based on calendar events, Slack calls, Zoom meetings, and microphone activity — automatically, with no manual interaction.
 
-## Estructura inicial
+## Components
 
-- `src/bumeet_agent/app.py`: punto de entrada futuro
-- `src/bumeet_agent/bootstrap.py`: inicializacion de servicios
-- `src/bumeet_agent/config.py`: configuracion local
-- `src/bumeet_agent/events/`: bus de eventos interno
-- `src/bumeet_agent/domain/`: estados y reglas de negocio
-- `src/bumeet_agent/ble/`: cliente GATT y protocolo de payloads
-- `src/bumeet_agent/detection/`: deteccion de hardware por sistema operativo
-- `src/bumeet_agent/tray/`: icono y menu de bandeja
-- `src/bumeet_agent/storage/`: persistencia local
-- `src/bumeet_agent/telemetry/`: puntos de extension para telemetria futura
+| Directory | Description |
+|---|---|
+| `firmware/` | M5Stack CoreInk firmware (Arduino / NimBLE) — BLE GATT server |
+| `src/bumeet_agent/` | Python desktop agent (macOS + Windows) — detects calls and pushes state |
+| `platform/apps/api/` | NestJS API — integrations, calendar sync, presence |
+| `platform/apps/web/` | Next.js — public landing + user dashboard |
+| `infra/` | Terraform on Azure (App Service, PostgreSQL, Redis, SWA, ACR) |
 
-## Requisitos
+## Quick start (development)
 
-- Python 3.10+
-- Windows 11 y macOS como objetivos prioritarios del MVP
+### Prerequisites
 
-## Estado
+- Node.js ≥ 20, pnpm ≥ 9
+- Python ≥ 3.11
+- Docker (for PostgreSQL + Redis)
+- Arduino IDE or `arduino-cli` (for firmware)
 
-Repositorio inicializado con estructura base. Los modulos se iran implementando de forma iterativa.
-
-## Simulacion sin hardware
-
-Puedes ejecutar un flujo completo sin dispositivo BLE externo usando el modo simulacion:
+### 1. Start infrastructure
 
 ```bash
-PYTHONPATH=src python -m bumeet_agent.app --simulate --scenario default --delay-scale 0
+cd platform
+docker compose up -d          # PostgreSQL + Redis
 ```
 
-Tambien puedes ver la simulacion en una interfaz de escritorio ligera:
+### 2. Start the API
 
 ```bash
-PYTHONPATH=src python -m bumeet_agent.app --simulate-ui
+cp platform/apps/api/.env.example platform/apps/api/.env  # fill in OAuth secrets
+cd platform
+pnpm install
+pnpm --filter api db:migrate
+pnpm --filter api dev
+# → http://localhost:3001
 ```
 
-Escenarios disponibles:
+### 3. Start the web app
 
-- `default`: llamada entra y termina
-- `bounce`: varios cambios rapido busy/free
-- `camera-only`: uso de camara sin microfono
+```bash
+cp platform/apps/web/.env.local.example platform/apps/web/.env.local
+pnpm --filter web dev
+# → http://localhost:3000
+```
 
-Esto valida el flujo detector -> state machine -> BLE client fake -> eventos y logs sin depender de hardware real.
+### 4. Run the desktop agent
 
-## Handoff para Claude Code
+```bash
+pip install -e ".[dev]"
+PYTHONPATH=src python -m bumeet_agent.app
+# Simulate without BLE hardware:
+PYTHONPATH=src python -m bumeet_agent.app --simulate --scenario default
+```
 
-Hay una guia de traspaso lista para continuar el trabajo en:
+Simulation scenarios: `default` (call enters and ends), `bounce` (rapid busy/free), `camera-only`.
 
-- `docs/claude-code-handoff.md`
+### 5. Flash the firmware
+
+Open `firmware/coreink/coreink.ino` in Arduino IDE. Board: **M5Stack-CoreInk**. Libraries: M5Unified, NimBLE-Arduino, Preferences.
+
+## Production
+
+| Service | URL |
+|---|---|
+| Landing | https://bumeet.es |
+| Dashboard | https://app.bumeet.es |
+| API | https://api.bumeet.es |
+
+## Architecture overview
+
+```
+[Door] ←BLE← [Desktop Agent] ←→ [API (Azure App Service)]
+                                         ↕
+                              [PostgreSQL + Redis (Azure)]
+                                         ↕
+                              [Web Dashboard (Azure SWA)]
+```
+
+The desktop agent detects microphone/camera usage via OS APIs and polls calendar integrations (Google, Outlook, Slack, Teams, Zoom, Webex). It pushes the presence state to the CoreInk display over BLE and reports it to the API for the web dashboard.
+
+## CI / CD
+
+| Workflow | Trigger | Description |
+|---|---|---|
+| `quality.yml` | PRs to `main` | lint, tsc, tests, firmware compile, terraform validate |
+| `api-deploy.yml` | push to `main` | Build Docker image → push to ACR → deploy to App Service |
+| `web-deploy.yml` | push to `main` | Deploy to Azure SWA (dev) |
+| `web-deploy-prod.yml` | push to `main` | Deploy to Azure SWA (prod) |
+| `terraform-apply.yml` | push to `main` | Terraform apply dev → prod (with environment approval) |
+| `agent-release.yml` | version tag `v*.*.*` | Build + sign + release agent binaries |
+
+## Security
+
+See [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Proprietary — © BUMEET. All rights reserved.

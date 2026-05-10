@@ -1,0 +1,43 @@
+name: Gitleaks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          VERSION=$(curl -s "https://api.github.com/repos/gitleaks/gitleaks/releases/latest" \
+            | grep '"tag_name"' | cut -d'"' -f4)
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/${VERSION}/gitleaks_${VERSION#v}_linux_x64.tar.gz" \
+            | tar xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Scan PR commits for secrets
+        if: github.event_name == 'pull_request'
+        run: |
+          gitleaks git \
+            --log-opts="origin/${{ github.base_ref }}..HEAD" \
+            --redact \
+            --verbose \
+            --exit-code=1
+
+      - name: Scan push for secrets
+        if: github.event_name == 'push'
+        run: |
+          gitleaks git \
+            --log-opts="-1" \
+            --redact \
+            --verbose \
+            --exit-code=1

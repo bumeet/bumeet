@@ -10,6 +10,10 @@ on:
       - '.github/workflows/api-deploy.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   ACR_REGISTRY: acrbumeetdev.azurecr.io
   IMAGE_NAME: bumeet-api
