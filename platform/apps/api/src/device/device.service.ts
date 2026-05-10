@@ -6,6 +6,11 @@ export interface BatteryStatus {
   updatedAt: string;
 }
 
+export interface BleDeviceConfig {
+  deviceAddress: string | null;
+  characteristicUuid: string | null;
+}
+
 @Injectable()
 export class DeviceService {
   constructor(private prisma: PrismaService) {}
@@ -36,5 +41,24 @@ export class DeviceService {
       data: { micActive, micUpdatedAt: now },
     });
     return { micActive, updatedAt: now.toISOString() };
+  }
+
+  async getBleConfig(userId: string): Promise<BleDeviceConfig> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { bleDeviceAddress: true, bleCharacteristicUuid: true },
+    });
+    return {
+      deviceAddress: user?.bleDeviceAddress ?? null,
+      characteristicUuid: user?.bleCharacteristicUuid ?? null,
+    };
+  }
+
+  async updateBleConfig(userId: string, deviceAddress: string, characteristicUuid: string): Promise<BleDeviceConfig> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { bleDeviceAddress: deviceAddress, bleCharacteristicUuid: characteristicUuid },
+    });
+    return { deviceAddress, characteristicUuid };
   }
 }

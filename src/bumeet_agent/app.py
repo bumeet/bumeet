@@ -7,8 +7,12 @@ import asyncio
 import signal
 import sys
 from pathlib import Path
+from typing import Any
+
+import aiohttp
 
 from bumeet_agent.bootstrap import build_container
+from bumeet_agent.config import ApiSettings, BleSettings, SettingsStore
 from bumeet_agent.detection.base import HardwareDetector
 from bumeet_agent.detection.service import AgentOrchestrator
 from bumeet_agent.events.models import AgentEvent, EventTopic
@@ -32,6 +36,33 @@ def _build_detector(poll_interval: float) -> HardwareDetector:
     raise RuntimeError(f"No hardware detector available for platform: {sys.platform}")
 
 
+async def _fetch_remote_ble_config(api: ApiSettings) -> BleSettings | None:
+    """Fetch BLE device config from the BUMEET API. Returns None on failure."""
+    url = f"{api.url}/agent/config"
+    headers = {"x-agent-key": api.token}
+    try:
+        async with aiohttp.ClientSession(headers=headers) as session:  # noqa: SIM117
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return None
+                data: dict[str, Any] = await resp.json()
+                ble_data: dict[str, Any] = data.get("ble") or {}
+                addr: str = ble_data.get("deviceAddress") or ""
+                uuid: str = ble_data.get("characteristicUuid") or ""
+                if addr and uuid:
+                    encoding: str = data.get("encoding") or "text"
+                    return BleSettings(
+                        device_address=addr,
+                        characteristic_uuid=uuid,
+                        payload_encoding=encoding,  # type: ignore[arg-type]
+                        busy_payload=str(data.get("payloadBusy") or "BUSY"),
+                        free_payload=str(data.get("payloadFree") or "FREE"),
+                    )
+    except Exception as exc:
+        logger.debug("Could not fetch remote BLE config: %s", exc)
+    return None
+
+
 async def run(
     config_path: Path | None = None,
     *,
@@ -52,7 +83,15 @@ async def run(
         )
         return result.exit_code
 
-    container = build_container(config_path)
+    # Load settings then optionally override BLE config from the cloud portal.
+    settings = SettingsStore(config_path).load()
+    if settings.api.is_configured and not settings.ble.is_configured:
+        remote_ble = await _fetch_remote_ble_config(settings.api)
+        if remote_ble:
+            logger.info("BLE config loaded from portal: %s", remote_ble.device_address)
+            settings = settings.model_copy(update={"ble": remote_ble})
+
+    container = build_container(config_path, settings_override=settings)
 
     async def _log_container_event(event: AgentEvent) -> None:
         logger.info("event=%s payload=%s", event.topic, event.payload)

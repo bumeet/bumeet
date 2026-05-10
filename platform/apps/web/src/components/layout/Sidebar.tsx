@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Calendar, Link2, MessageSquare, Activity, User, LogOut } from 'lucide-react';
+import { Calendar, Link2, MessageSquare, Activity, User, LogOut, Bluetooth } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { href: '/integrations', label: 'Integrations', icon: Link2 },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/status', label: 'Status', icon: Activity },
+  { href: '/device', label: 'Device', icon: Bluetooth },
   { href: '/account', label: 'Account', icon: User },
 ];
 

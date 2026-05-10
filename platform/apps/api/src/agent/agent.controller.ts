@@ -49,11 +49,18 @@ export class AgentController {
   @Get('config')
   async getConfig(@Headers('x-agent-key') key: string) {
     this.checkApiKey(key);
+    const user = await this.prisma.user.findFirst({
+      select: { bleDeviceAddress: true, bleCharacteristicUuid: true },
+    });
     return {
-      payloadBusy: '01',
-      payloadFree: '00',
-      encoding: 'hex',
-      pollInterval: 2,
+      payloadBusy: 'BUSY',
+      payloadFree: 'FREE',
+      encoding: 'text',
+      pollInterval: 5,
+      ble: {
+        deviceAddress: user?.bleDeviceAddress ?? null,
+        characteristicUuid: user?.bleCharacteristicUuid ?? null,
+      },
     };
   }
 }
