@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import {
   Bluetooth, Terminal, CheckCircle, AlertCircle,
   Loader2, Download, Copy, Check, Monitor, Link,
@@ -38,6 +39,7 @@ function CopyBlock({ value }: { value: string }) {
 
 export default function DevicePage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const [platform, setPlatform] = useState<Platform>('macos');
   const [config, setConfig] = useState<BleConfig>({ deviceAddress: null, characteristicUuid: null });
   const [address, setAddress] = useState('');
@@ -79,6 +81,21 @@ export default function DevicePage() {
       }
     } catch {}
   }, [token]);
+
+  // Auto-approve when agent opens the portal with ?pair=CODE
+  useEffect(() => {
+    const code = searchParams.get('pair');
+    if (!code || !token || pairStatus !== 'idle') return;
+    setPairCode(code);
+    setPairStatus('linking');
+    fetch(`${API_URL}/agent/pair/approve`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.toUpperCase() }),
+    })
+      .then(r => setPairStatus(r.ok ? 'done' : 'error'))
+      .catch(() => setPairStatus('error'));
+  }, [searchParams, token, pairStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -210,28 +227,37 @@ export default function DevicePage() {
           {pairStatus === 'done' && <CheckCircle size={16} className="text-green-500" />}
         </div>
         <div className="ml-8 space-y-3">
-          <p className="text-sm text-gray-500">
-            The agent displays a 6-character code when it starts. Enter it below — no token copy-paste needed.
-          </p>
-          <div className="flex gap-2 items-start">
-            <input
-              type="text"
-              maxLength={6}
-              value={pairCode}
-              onChange={e => { setPairCode(e.target.value.toUpperCase()); setPairStatus('idle'); }}
-              placeholder="A3K7P2"
-              className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest text-center uppercase focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-            <button
-              onClick={linkAgent}
-              disabled={pairStatus === 'linking' || pairCode.trim().length !== 6}
-              className="px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-            >
-              {pairStatus === 'linking'
-                ? <><Loader2 size={14} className="animate-spin" /> Linking…</>
-                : <><Link size={14} /> Link agent</>}
-            </button>
-          </div>
+          {pairStatus === 'linking' && (
+            <p className="text-sm text-brand-600 flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" />
+              Linking agent automatically…
+            </p>
+          )}
+          {pairStatus === 'idle' && (
+            <p className="text-sm text-gray-500">
+              When you install the agent it opens this page automatically and links itself.
+              If that didn&apos;t happen, enter the code shown in the Terminal:
+            </p>
+          )}
+          {pairStatus === 'idle' && (
+            <div className="flex gap-2 items-start">
+              <input
+                type="text"
+                maxLength={6}
+                value={pairCode}
+                onChange={e => { setPairCode(e.target.value.toUpperCase()); setPairStatus('idle'); }}
+                placeholder="A3K7P2"
+                className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest text-center uppercase focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <button
+                onClick={linkAgent}
+                disabled={pairStatus === 'linking' || pairCode.trim().length !== 6}
+                className="px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                <Link size={14} /> Link agent
+              </button>
+            </div>
+          )}
           {pairStatus === 'done' && (
             <p className="text-sm text-green-600 flex items-center gap-1">
               <CheckCircle size={14} /> Agent linked — the agent will connect automatically

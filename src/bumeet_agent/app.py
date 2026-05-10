@@ -7,6 +7,7 @@ import asyncio
 import secrets
 import signal
 import sys
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -94,13 +95,17 @@ async def _pair_with_portal(api: ApiSettings, settings_store: SettingsStore) -> 
         logger.warning("Could not reach API to register pairing code: %s", exc)
         return False
 
+    # Open browser — portal will auto-approve if the user is logged in
+    portal_url = f"https://bumeet.es/device?pair={code}"
+    webbrowser.open(portal_url)
+
     print("\n" + "=" * 50)
-    print("  BUMEET — Link this agent to your account")
+    print("  BUMEET — linking to your account…")
     print("=" * 50)
-    print("\n  1. Open https://bumeet.es and go to  Device")
-    print("  2. Click 'Link Agent' and enter the code:\n")
-    print(f"          {code}")
-    print("\n  Waiting for approval (expires in 5 min)…")
+    print("\n  A browser window has opened. Log in if needed.")
+    print("  The agent will link automatically once you're logged in.")
+    print(f"\n  Manual fallback code: {code}")
+    print("\n  Waiting… (expires in 5 min)")
     print("=" * 50 + "\n")
 
     deadline = asyncio.get_event_loop().time() + _PAIR_TTL
