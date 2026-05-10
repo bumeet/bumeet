@@ -15,11 +15,13 @@ model User {
   avatarUrl    String?
   timezone         String    @default("UTC")
   language         String    @default("en")
-  batteryLevel     Int?
-  batteryUpdatedAt DateTime?
-  micActive        Boolean   @default(false)
-  micUpdatedAt     DateTime?
-  createdAt        DateTime  @default(now())
+  batteryLevel          Int?
+  batteryUpdatedAt      DateTime?
+  micActive             Boolean   @default(false)
+  micUpdatedAt          DateTime?
+  bleDeviceAddress      String?
+  bleCharacteristicUuid String?
+  createdAt             DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   sessions       Session[]

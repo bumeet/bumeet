@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>es.bumeet.agent</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/bumeet-agent</string>
+  </array>
+
+  <!-- Start at login and restart automatically on crash -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Log to ~/Library/Logs/BUMEET/ -->
+  <key>StandardOutPath</key>
+  <string>$(HOME)/Library/Logs/BUMEET/agent.log</string>
+  <key>StandardErrorPath</key>
+  <string>$(HOME)/Library/Logs/BUMEET/agent-error.log</string>
+
+  <!-- Throttle restart to avoid tight loops on persistent failure -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>
