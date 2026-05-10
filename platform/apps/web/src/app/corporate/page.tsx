@@ -115,7 +115,7 @@ const T = {
       sub: 'BUMEET es una pantalla e-ink inalámbrica para puertas que muestra automáticamente cuándo alguien está en una reunión — sin cables, sin configuración, sin acción necesaria.',
       cta1: 'Solicitar demo para mi equipo',
       cta2: 'Comprar para mí',
-      social: 'De confianza para',
+      social: 'Elegido por',
       socialBold: '+500 trabajadores remotos',
       socialEnd: 'en Europa',
       detected: 'Detectado automáticamente · 0ms',
@@ -126,13 +126,13 @@ const T = {
     eink: { available: 'Disponible', busy: 'Ocupado', inMeeting: 'En reunión', ends: 'Termina · 16:00', comeIn: 'Pasa adelante' },
     why: {
       label: 'Por qué BUMEET',
-      h2a: 'Diseñado para el trabajo profundo.',
-      h2b: 'Hecho para desaparecer.',
-      sub: 'Sin paneles que revisar ni estados que actualizar. BUMEET simplemente funciona.',
+      h2a: 'Hecho para trabajar sin interrupciones.',
+      h2b: 'Pensado para pasar desapercibido.',
+      sub: 'Nada que configurar ni actualizar manualmente. Lo enciendes y funciona.',
       props: [
         { tag: 'Sincronización instantánea', title: 'Detecta cada llamada. Automáticamente.', desc: 'BUMEET monitoriza la cámara y el micrófono en Zoom, Teams, Google Meet y Slack — la pantalla se actualiza antes de que digas una palabra.' },
         { tag: 'Sin cables', title: 'Pantalla e-ink. BLE. Un año de batería.', desc: 'La e-ink solo consume energía cuando cambia el contenido. Una carga dura hasta 12 meses. Sin adaptador, sin cable USB, sin configuración Wi-Fi.' },
-        { tag: 'Privacidad total', title: 'Todo permanece en tu equipo.', desc: 'Sin procesamiento en la nube. Sin cámaras. Sin grabación de micrófonos. El agente corre únicamente en tu ordenador y se comunica directamente con la pantalla vía Bluetooth.' },
+        { tag: 'Privacidad total', title: 'Todo se queda en tu ordenador.', desc: 'Sin procesamiento en la nube. Sin grabación de ningún tipo. El agente se ejecuta únicamente en tu máquina y se comunica directamente con la pantalla por Bluetooth.' },
       ],
     },
     how: {
@@ -155,7 +155,7 @@ const T = {
     b2b: {
       badge: 'Para RR.HH. y People Teams',
       h2a: 'El mejor regalo de bienvenida',
-      h2b: 'que nunca imaginaste.',
+      h2b: 'que no sabías que necesitabas.',
       p1a: 'Los trabajadores remotos e híbridos pierden una media de',
       p1b: '2,1 horas al día',
       p1c: 'por interrupciones innecesarias. BUMEET es la herramienta de bienestar que se amortiza en la primera semana.',
