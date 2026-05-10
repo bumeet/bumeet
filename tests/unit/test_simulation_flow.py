@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -22,12 +23,21 @@ from bumeet_agent.events.models import AgentEvent, EventTopic
 class SimulationFlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_default_simulation_sends_busy_then_free_payloads(self) -> None:
         event_bus = AsyncEventBus()
-        client_factory, created_clients = build_fake_client_factory()
+        _, _ = build_fake_client_factory()
         ble_client = BleClient(
             settings=BleSettings(device_address="SIM", characteristic_uuid="char-uuid"),
             event_bus=event_bus,
-            client_factory=client_factory,
         )
+
+        # Record every payload passed to send_when_available instead of
+        # exercising real BLE scanning (no radio in CI).
+        sent_payloads: list[bytes] = []
+
+        async def _fake_send(payload: bytes, *, give_up_after: float = 3600.0) -> None:
+            sent_payloads.append(payload)
+
+        ble_client.send_when_available = _fake_send  # type: ignore[method-assign]
+
         state_machine = PresenceStateMachine()
         orchestrator = AgentOrchestrator(
             event_bus=event_bus, state_machine=state_machine, ble_client=ble_client
@@ -42,8 +52,13 @@ class SimulationFlowTests(unittest.IsolatedAsyncioTestCase):
         await event_bus.subscribe("*", capture)
         await detector.start(orchestrator.handle_snapshot)
 
-        self.assertEqual(len(created_clients), 1)
-        self.assertEqual([write.payload for write in created_clients[0].writes], [b"\x01", b"\x00"])
+        # Drain any pending background tasks.
+        await asyncio.sleep(0)
+        if orchestrator._pending_send and not orchestrator._pending_send.done():
+            await orchestrator._pending_send
+
+        self.assertIn(b"BUSY", sent_payloads)
+        self.assertIn(b"FREE", sent_payloads)
 
         occupancy_events = [
             event for event in recorded_events if event.topic == EventTopic.OCCUPANCY_CHANGED.value

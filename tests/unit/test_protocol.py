@@ -13,7 +13,11 @@ from bumeet_agent.config import BleSettings
 class ProtocolTests(unittest.TestCase):
     def test_hex_payloads_are_serialized_to_bytes(self) -> None:
         settings = BleSettings(
-            device_address="SIM", characteristic_uuid="uuid", payload_encoding="hex"
+            device_address="SIM",
+            characteristic_uuid="uuid",
+            payload_encoding="hex",
+            busy_payload="01",
+            free_payload="00",
         )
 
         self.assertEqual(payload_for_state(PresenceState.BUSY, settings), b"\x01")
