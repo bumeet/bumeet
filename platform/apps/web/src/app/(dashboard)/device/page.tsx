@@ -48,16 +48,16 @@ export default function DevicePage() {
   const token = (session as any)?.apiToken as string | undefined;
 
   const macCmd = token
-    ? `curl -fsSL https://bumeet.es/install.sh | bash -s -- --token ${token}`
-    : `curl -fsSL https://bumeet.es/install.sh | bash`;
+    ? `curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash -s -- --token ${token}`
+    : `curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash`;
 
   const winCmd = token
-    ? `irm https://bumeet.es/install.ps1 | iex; # then: .\\install.ps1 -Token ${token}`
-    : `irm https://bumeet.es/install.ps1 | iex`;
+    ? `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex; # then: .\\install.ps1 -Token ${token}`
+    : `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex`;
 
   const winCmdFull = token
-    ? `& ([scriptblock]::Create((irm https://bumeet.es/install.ps1))) -Token "${token}"`
-    : `irm https://bumeet.es/install.ps1 | iex`;
+    ? `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1))) -Token "${token}"`
+    : `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex`;
 
   const load = useCallback(async () => {
     if (!token) return;

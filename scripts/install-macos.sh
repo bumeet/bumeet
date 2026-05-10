@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BUMEET agent — macOS installer
-# Usage: curl -fsSL https://bumeet.es/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash
 #        or:  bash scripts/install-macos.sh [--token YOUR_API_TOKEN]
 set -euo pipefail
 

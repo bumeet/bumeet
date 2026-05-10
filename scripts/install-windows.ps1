@@ -12,10 +12,10 @@
     the portal automatically.
 .EXAMPLE
     # Run from PowerShell (admin not required):
-    irm https://bumeet.es/install.ps1 | iex
+    irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex
 
     # With API token:
-    & ([scriptblock]::Create((irm https://bumeet.es/install.ps1))) -Token "your-token-here"
+    & ([scriptblock]::Create((irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1))) -Token "your-token-here"
 #>
 param(
     [string]$Token = ""
