@@ -9,6 +9,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { MessagesModule } from './messages/messages.module';
 import { AgentModule } from './agent/agent.module';
 import { DeviceModule } from './device/device.module';
+import { PairingModule } from './pairing/pairing.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DeviceModule } from './device/device.module';
     MessagesModule,
     AgentModule,
     DeviceModule,
+    PairingModule,
   ],
 })
 export class AppModule {}

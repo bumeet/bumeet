@@ -1,5 +1,4 @@
 import { Controller, Post, Get, Body, Headers, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { IsString, IsIn } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,57 +8,34 @@ class PresenceDto {
   status: 'busy' | 'free';
 }
 
-class AgentMessageDto {
-  @IsString()
-  content: string;
-
-  @IsString()
-  userId: string;
-}
-
 @Controller('agent')
 export class AgentController {
-  constructor(
-    private prisma: PrismaService,
-    private config: ConfigService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  private checkApiKey(key: string) {
-    const expected = this.config.get('AGENT_API_KEY') || 'demo-agent-key-change-in-production';
-    if (key !== expected) throw new UnauthorizedException('Invalid agent API key');
+  private async resolveUser(token: string) {
+    if (!token) throw new UnauthorizedException('Missing x-agent-key');
+    const user = await this.prisma.user.findUnique({ where: { agentToken: token } });
+    if (!user) throw new UnauthorizedException('Invalid agent token');
+    return user;
   }
 
   @Post('presence')
-  async updatePresence(@Headers('x-agent-key') key: string, @Body() dto: PresenceDto & { userId?: string }) {
-    this.checkApiKey(key);
+  async updatePresence(@Headers('x-agent-key') key: string, @Body() dto: PresenceDto) {
+    await this.resolveUser(key);
     return { status: dto.status, updatedAt: new Date().toISOString() };
-  }
-
-  @Post('message')
-  async sendMessage(@Headers('x-agent-key') key: string, @Body() dto: AgentMessageDto) {
-    this.checkApiKey(key);
-    const user = await this.prisma.user.findFirst();
-    if (!user) return { error: 'No users found' };
-
-    return this.prisma.messageToDisplay.create({
-      data: { userId: user.id, content: dto.content, status: 'pending' },
-    });
   }
 
   @Get('config')
   async getConfig(@Headers('x-agent-key') key: string) {
-    this.checkApiKey(key);
-    const user = await this.prisma.user.findFirst({
-      select: { bleDeviceAddress: true, bleCharacteristicUuid: true },
-    });
+    const user = await this.resolveUser(key);
     return {
       payloadBusy: 'BUSY',
       payloadFree: 'FREE',
       encoding: 'text',
       pollInterval: 5,
       ble: {
-        deviceAddress: user?.bleDeviceAddress ?? null,
-        characteristicUuid: user?.bleCharacteristicUuid ?? null,
+        deviceAddress: user.bleDeviceAddress ?? null,
+        characteristicUuid: user.bleCharacteristicUuid ?? null,
       },
     };
   }
