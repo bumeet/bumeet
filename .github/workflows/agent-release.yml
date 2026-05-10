@@ -22,7 +22,7 @@ jobs:
           - os: macos
             runner: macos-latest
             artifact: bumeet-agent-macos
-            asset: "BUMEET Agent.app"
+            asset: bumeet-agent-macos
           - os: windows
             runner: windows-latest
             artifact: bumeet-agent-windows.exe
@@ -48,16 +48,14 @@ jobs:
         if: matrix.os == 'macos'
         run: |
           pyinstaller bumeet-agent.spec
-          # Zip the .app bundle so GitHub Releases can attach it
-          cd dist
-          zip -r bumeet-agent-macos.zip "BUMEET Agent.app"
+          mv dist/bumeet-agent dist/bumeet-agent-macos
 
       - name: Upload macOS artifact
         if: matrix.os == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: bumeet-agent-macos
-          path: dist/bumeet-agent-macos.zip
+          path: dist/bumeet-agent-macos
 
       # ── Windows ────────────────────────────────────────────────────────────
       - name: Build (Windows)
@@ -116,7 +114,7 @@ jobs:
 
             | Platform | Archivo | Notas |
             |---|---|---|
-            | macOS | `bumeet-agent-macos.zip` | Apple Silicon + Intel · descomprime y arrastra a Aplicaciones |
+            | macOS | `bumeet-agent-macos` | Apple Silicon + Intel · `chmod +x` y ejecuta |
             | Windows | `bumeet-agent-windows.exe` | 64-bit · ejecuta directamente |
             | Linux | `bumeet-agent-linux` | x86_64 · `chmod +x` antes de ejecutar |
 
@@ -143,7 +141,7 @@ jobs:
 
             Repositorio: [github.com/bumeet/bumeet](https://github.com/bumeet/bumeet)
           files: |
-            dist/bumeet-agent-macos/bumeet-agent-macos.zip
+            dist/bumeet-agent-macos/bumeet-agent-macos
             dist/bumeet-agent-windows/bumeet-agent-windows.exe
             dist/bumeet-agent-linux/bumeet-agent-linux
           draft: false

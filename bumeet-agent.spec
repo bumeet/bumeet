@@ -68,18 +68,3 @@ exe = EXE(
     # macOS: embed icon when available
     icon=None,
 )
-
-# macOS: wrap in .app bundle
-if sys.platform == 'darwin':
-    app = BUNDLE(
-        exe,
-        name='BUMEET Agent.app',
-        icon=None,
-        bundle_identifier='es.bumeet.agent',
-        info_plist={
-            'NSBluetoothAlwaysUsageDescription': 'BUMEET needs Bluetooth to communicate with the e-ink display.',
-            'NSBluetoothPeripheralUsageDescription': 'BUMEET needs Bluetooth to communicate with the e-ink display.',
-            'LSUIElement': True,   # run as background app (no Dock icon)
-            'CFBundleShortVersionString': '0.1.0',
-        },
-    )

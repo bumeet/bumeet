@@ -35,10 +35,8 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 curl -fsSL \
-  "https://github.com/${REPO}/releases/download/${LATEST}/bumeet-agent-macos.zip" \
-  -o "$TMP/agent.zip"
-
-unzip -q "$TMP/agent.zip" -d "$TMP"
+  "https://github.com/${REPO}/releases/download/${LATEST}/bumeet-agent-macos" \
+  -o "$TMP/$BINARY_NAME"
 chmod +x "$TMP/$BINARY_NAME"
 
 # ── Install binary ────────────────────────────────────────────────────────────
