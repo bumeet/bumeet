@@ -20,12 +20,16 @@ type Integration = {
 
 type SlackPresence = { inCall: boolean; presence: string; status: string; emoji: string };
 type TeamsPresence = { inCall: boolean; availability: string; activity: string };
+type ZoomPresence  = { inCall: boolean; status: string };
+type WebexPresence = { inCall: boolean; status: string };
 
 const PROVIDERS = [
-  { id: 'google', name: 'Google Calendar', description: 'Sync events from Google Calendar', emoji: '📅' },
-  { id: 'microsoft', name: 'Microsoft Outlook', description: 'Sync events from Outlook calendar', emoji: '📆' },
-  { id: 'teams', name: 'Microsoft Teams', description: 'Detect Teams calls and meetings in real time', emoji: '🟦' },
-  { id: 'slack', name: 'Slack', description: 'Detect calls and huddles in real time', emoji: '💬' },
+  { id: 'google',    name: 'Google Calendar',   description: 'Sync events from Google Calendar',                  emoji: '📅' },
+  { id: 'microsoft', name: 'Microsoft Outlook',  description: 'Sync events from Outlook calendar',                 emoji: '📆' },
+  { id: 'teams',     name: 'Microsoft Teams',    description: 'Detect Teams calls and meetings in real time',      emoji: '🟦' },
+  { id: 'slack',     name: 'Slack',              description: 'Detect calls and huddles in real time',             emoji: '💬' },
+  { id: 'zoom',      name: 'Zoom',               description: 'Sync meetings and detect active Zoom calls',        emoji: '🎥' },
+  { id: 'webex',     name: 'Cisco Webex',        description: 'Sync meetings and detect active Webex calls',       emoji: '🔵' },
 ];
 
 const MAX_ACCOUNTS = 5;
@@ -38,6 +42,8 @@ export default function IntegrationsPage() {
   const [connecting, setConnecting] = useState<string | null>(null);
   const [slackPresence, setSlackPresence] = useState<Record<string, SlackPresence>>({});
   const [teamsPresence, setTeamsPresence] = useState<Record<string, TeamsPresence>>({});
+  const [zoomPresence,  setZoomPresence]  = useState<Record<string, ZoomPresence>>({});
+  const [webexPresence, setWebexPresence] = useState<Record<string, WebexPresence>>({});
 
   const token = (session as any)?.apiToken;
   const searchParams = useSearchParams();
@@ -77,6 +83,22 @@ export default function IntegrationsPage() {
     } catch {}
   }, [token]);
 
+  const pollZoomPresence = useCallback(async (integrationId: string) => {
+    if (!token) return;
+    try {
+      const p = await api.get<ZoomPresence>(`/integrations/${integrationId}/presence`, token);
+      if (p) setZoomPresence((prev) => ({ ...prev, [integrationId]: p }));
+    } catch {}
+  }, [token]);
+
+  const pollWebexPresence = useCallback(async (integrationId: string) => {
+    if (!token) return;
+    try {
+      const p = await api.get<WebexPresence>(`/integrations/${integrationId}/presence`, token);
+      if (p) setWebexPresence((prev) => ({ ...prev, [integrationId]: p }));
+    } catch {}
+  }, [token]);
+
   // Poll Slack presence every 20s for all connected Slack accounts
   useEffect(() => {
     const slackAccounts = integrations.filter((i) => i.provider === 'slack' && i.status === 'active');
@@ -96,6 +118,24 @@ export default function IntegrationsPage() {
     const interval = setInterval(() => teamsAccounts.forEach((a) => pollTeamsPresence(a.id)), 30_000);
     return () => clearInterval(interval);
   }, [integrations, pollTeamsPresence]);
+
+  // Poll Zoom presence every 30s
+  useEffect(() => {
+    const accounts = integrations.filter((i) => i.provider === 'zoom' && i.status === 'active');
+    if (!accounts.length) return;
+    accounts.forEach((a) => pollZoomPresence(a.id));
+    const interval = setInterval(() => accounts.forEach((a) => pollZoomPresence(a.id)), 30_000);
+    return () => clearInterval(interval);
+  }, [integrations, pollZoomPresence]);
+
+  // Poll Webex presence every 30s
+  useEffect(() => {
+    const accounts = integrations.filter((i) => i.provider === 'webex' && i.status === 'active');
+    if (!accounts.length) return;
+    accounts.forEach((a) => pollWebexPresence(a.id));
+    const interval = setInterval(() => accounts.forEach((a) => pollWebexPresence(a.id)), 30_000);
+    return () => clearInterval(interval);
+  }, [integrations, pollWebexPresence]);
 
   const getAccounts = (provider: string) => integrations.filter((i) => i.provider === provider);
 
@@ -196,8 +236,10 @@ export default function IntegrationsPage() {
                     const isError = integration.status === 'error';
                     const slack = provider.id === 'slack' ? slackPresence[integration.id] : null;
                     const teams = provider.id === 'teams' ? teamsPresence[integration.id] : null;
+                    const zoom  = provider.id === 'zoom'  ? zoomPresence[integration.id]  : null;
+                    const webex = provider.id === 'webex' ? webexPresence[integration.id] : null;
                     const inMeeting =
-                      (provider.id === 'google' || provider.id === 'microsoft') &&
+                      (['google', 'microsoft', 'zoom', 'webex'].includes(provider.id)) &&
                       calendarStatus.busy &&
                       calendarStatus.source === provider.id;
 
@@ -245,6 +287,18 @@ export default function IntegrationsPage() {
                                     </span>
                                   )}
                                 </>
+                              )}
+                              {/* Zoom live presence */}
+                              {zoom?.inCall && (
+                                <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
+                                  <Radio size={10} /> In Zoom call
+                                </span>
+                              )}
+                              {/* Webex live presence */}
+                              {webex?.inCall && (
+                                <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-red-700 bg-red-50 animate-pulse">
+                                  <Radio size={10} /> In Webex call
+                                </span>
                               )}
                               {/* Slack live presence + call indicator */}
                               {slack && (
