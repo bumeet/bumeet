@@ -50,15 +50,17 @@ jobs:
           pyinstaller bumeet-agent.spec
           mv dist/bumeet-agent dist/bumeet-agent-macos
           bash packaging/macos/build-dmg.sh dist/bumeet-agent-macos "${{ inputs.tag || github.ref_name }}"
+          # Collect both outputs in one flat directory for clean artifact upload
+          mkdir -p dist/release-macos
+          cp dist/bumeet-agent-macos dist/release-macos/bumeet-agent-macos
+          mv bumeet-agent.dmg dist/release-macos/bumeet-agent.dmg
 
       - name: Upload macOS artifacts
         if: matrix.os == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: bumeet-agent-macos
-          path: |
-            dist/bumeet-agent-macos
-            bumeet-agent.dmg
+          path: dist/release-macos/
 
       # ── Windows ────────────────────────────────────────────────────────────
       - name: Build (Windows)
