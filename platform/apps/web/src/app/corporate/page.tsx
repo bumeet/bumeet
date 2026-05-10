@@ -40,7 +40,7 @@ const T = {
       props: [
         { tag: 'Instant Sync', title: 'Detects every call. Automatically.', desc: 'BUMEET listens for camera and microphone activity across Zoom, Teams, Google Meet and Slack — the display updates before your first word.' },
         { tag: 'Zero Wires', title: 'E-ink display. BLE. One-year battery.', desc: 'E-ink only draws power when the content changes. A single charge lasts up to 12 months. No power adapter, no USB cable, no Wi-Fi setup.' },
-        { tag: 'Privacy First', title: 'Everything stays on your machine.', desc: "No cloud processing. No cameras. No microphones recording. The agent runs entirely on your computer and communicates directly with the display over Bluetooth." },
+        { tag: 'Privacy First', title: 'Your camera and microphone are never recorded.', desc: "Only your presence status (free / busy) is synced, encrypted in transit. You choose which integrations to authorize and can pause the agent at any time." },
       ],
     },
     how: {
@@ -132,7 +132,7 @@ const T = {
       props: [
         { tag: 'Sincronización instantánea', title: 'Detecta cada llamada. Automáticamente.', desc: 'BUMEET monitoriza la cámara y el micrófono en Zoom, Teams, Google Meet y Slack — la pantalla se actualiza antes de que digas una palabra.' },
         { tag: 'Sin cables', title: 'Pantalla e-ink. BLE. Un año de batería.', desc: 'La e-ink solo consume energía cuando cambia el contenido. Una carga dura hasta 12 meses. Sin adaptador, sin cable USB, sin configuración Wi-Fi.' },
-        { tag: 'Privacidad total', title: 'Todo se queda en tu ordenador.', desc: 'Sin procesamiento en la nube. Sin grabación de ningún tipo. El agente se ejecuta únicamente en tu máquina y se comunica directamente con la pantalla por Bluetooth.' },
+        { tag: 'Privacidad total', title: 'Tu cámara y micrófono nunca se graban.', desc: 'Solo se sincroniza tu estado de presencia (libre / ocupado), cifrado en tránsito. Tú decides qué integraciones autorizas y puedes pausar el agente en cualquier momento.' },
       ],
     },
     how: {
