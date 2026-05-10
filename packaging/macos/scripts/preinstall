@@ -1,0 +1,16 @@
+#!/bin/bash
+# Stop any running instance before installing a new binary
+set -euo pipefail
+
+PLIST_LABEL="es.bumeet.agent"
+CURRENT_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "$USER")
+USER_HOME=$(dscl . -read "/Users/$CURRENT_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}' || echo "$HOME")
+PLIST_PATH="$USER_HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
+
+if [ -f "$PLIST_PATH" ]; then
+    sudo -u "$CURRENT_USER" launchctl unload "$PLIST_PATH" 2>/dev/null || true
+fi
+
+pkill -x bumeet-agent 2>/dev/null || true
+
+exit 0

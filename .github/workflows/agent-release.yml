@@ -49,13 +49,16 @@ jobs:
         run: |
           pyinstaller bumeet-agent.spec
           mv dist/bumeet-agent dist/bumeet-agent-macos
+          bash packaging/macos/build-dmg.sh dist/bumeet-agent-macos "${{ inputs.tag || github.ref_name }}"
 
-      - name: Upload macOS artifact
+      - name: Upload macOS artifacts
         if: matrix.os == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: bumeet-agent-macos
-          path: dist/bumeet-agent-macos
+          path: |
+            dist/bumeet-agent-macos
+            bumeet-agent.dmg
 
       # ── Windows ────────────────────────────────────────────────────────────
       - name: Build (Windows)
@@ -114,7 +117,7 @@ jobs:
 
             | Platform | Archivo | Notas |
             |---|---|---|
-            | macOS | `bumeet-agent-macos` | Apple Silicon + Intel · `chmod +x` y ejecuta |
+            | macOS | `bumeet-agent.dmg` | Instalador DMG — doble clic, Next → Install |
             | Windows | `bumeet-agent-windows.exe` | 64-bit · ejecuta directamente |
             | Linux | `bumeet-agent-linux` | x86_64 · `chmod +x` antes de ejecutar |
 
@@ -141,6 +144,7 @@ jobs:
 
             Repositorio: [github.com/bumeet/bumeet](https://github.com/bumeet/bumeet)
           files: |
+            dist/bumeet-agent-macos/bumeet-agent.dmg
             dist/bumeet-agent-macos/bumeet-agent-macos
             dist/bumeet-agent-windows/bumeet-agent-windows.exe
             dist/bumeet-agent-linux/bumeet-agent-linux
@@ -153,6 +157,12 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           # Upload versioned copy  (e.g. /v0.1.1/bumeet-agent-macos)
+          az storage blob upload \
+            --container-name releases \
+            --name "${TAG}/bumeet-agent.dmg" \
+            --file dist/bumeet-agent-macos/bumeet-agent.dmg \
+            --overwrite
+
           az storage blob upload \
             --container-name releases \
             --name "${TAG}/bumeet-agent-macos" \
@@ -172,6 +182,12 @@ jobs:
             --overwrite
 
           # Update the stable 'latest' pointer
+          az storage blob copy start \
+            --destination-container releases \
+            --destination-blob "latest/bumeet-agent.dmg" \
+            --source-container releases \
+            --source-blob "${TAG}/bumeet-agent.dmg"
+
           az storage blob copy start \
             --destination-container releases \
             --destination-blob "latest/bumeet-agent-macos" \

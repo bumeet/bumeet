@@ -1,0 +1,58 @@
+#!/bin/bash
+# Post-install: create dirs, install launchd plist, start agent, open portal
+set -euo pipefail
+
+PLIST_LABEL="es.bumeet.agent"
+BINARY="/usr/local/bin/bumeet-agent"
+
+# Find the real logged-in user (not root)
+CURRENT_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "$USER")
+USER_HOME=$(dscl . -read "/Users/$CURRENT_USER" NFSHomeDirectory 2>/dev/null \
+    | awk '{print $2}' || eval echo "~$CURRENT_USER")
+
+LAUNCH_AGENTS="$USER_HOME/Library/LaunchAgents"
+LOG_DIR="$USER_HOME/Library/Logs/BUMEET"
+PLIST_PATH="$LAUNCH_AGENTS/${PLIST_LABEL}.plist"
+
+mkdir -p "$LAUNCH_AGENTS" "$LOG_DIR"
+chown "$CURRENT_USER" "$LOG_DIR"
+
+# Write launchd plist
+cat > "$PLIST_PATH" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${PLIST_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array><string>${BINARY}</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${LOG_DIR}/agent.log</string>
+  <key>StandardErrorPath</key><string>${LOG_DIR}/agent-error.log</string>
+  <key>ThrottleInterval</key><integer>30</integer>
+</dict>
+</plist>
+PLIST
+
+chown "$CURRENT_USER" "$PLIST_PATH"
+
+# Load the agent as the actual user
+sudo -u "$CURRENT_USER" launchctl load -w "$PLIST_PATH"
+
+# Wait briefly for the agent to write its pairing code to the log
+sleep 3
+
+# Open a Terminal showing the pairing code, and open the portal in Safari
+sudo -u "$CURRENT_USER" osascript <<APPLESCRIPT
+tell application "Terminal"
+    activate
+    do script "echo ''; echo '══════════════════════════════════════'; echo '  BUMEET — Link your agent'; echo '══════════════════════════════════════'; tail -50 '$LOG_DIR/agent.log' | grep -A3 'enter the code' || (echo '  Starting…'; sleep 3; tail -30 '$LOG_DIR/agent.log')"
+end tell
+
+delay 1
+open location "https://bumeet.es/device"
+APPLESCRIPT
+
+exit 0

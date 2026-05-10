@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>BUMEET Agent</title>
+    <organization>es.bumeet</organization>
+    <domains enable_localSystem="false" enable_currentUserHome="false"/>
+    <options customize="never" require-scripts="true" rootVolumeOnly="true"/>
+
+    <welcome file="welcome.html"/>
+    <conclusion file="conclusion.html"/>
+
+    <pkg-ref id="es.bumeet.agent"/>
+
+    <choices-outline>
+        <line choice="es.bumeet.agent"/>
+    </choices-outline>
+
+    <choice id="es.bumeet.agent" title="BUMEET Agent">
+        <pkg-ref id="es.bumeet.agent"/>
+    </choice>
+
+    <pkg-ref id="es.bumeet.agent"
+             version="VERSION_PLACEHOLDER"
+             auth="root">bumeet-agent-component.pkg</pkg-ref>
+</installer-gui-script>
