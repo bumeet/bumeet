@@ -49,14 +49,19 @@ static const uint16_t ADV_INTERVAL        = 2048;  // × 0.625 ms = 1280 ms
 static const uint32_t BATT_INTERVAL_MS    = 10UL * 60UL * 1000UL;
 static const uint32_t REFRESH_DEBOUNCE_MS = 1000;
 static const uint32_t TASK_TIMEOUT_MS     = 60000;
+// Tiempo sin conexión antes de limpiar el estado a FREE.
+// 5 minutos: suficiente para cubrir pérdidas de señal breves (usuario en sala de reuniones),
+// pero no tan largo como para dejar BUSY en la puerta cuando el usuario ya se ha ido.
+static const uint32_t AUTO_FREE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static Preferences           gPrefs;
 static String                gCurrentMsg;        // último estado mostrado en pantalla
 static String                gPendingMsg;        // mensaje recibido por BLE, pendiente de render
 static String                gLastPersistedMsg;  // último valor escrito en NVS
-static volatile bool         gNeedsRedraw  = false;
-static bool                  gConnected    = false;
+static volatile bool         gNeedsRedraw    = false;
+static bool                  gConnected      = false;
+static unsigned long         gDisconnectedMs = 0;  // millis() cuando se perdió la última conexión
 static NimBLECharacteristic* pBattChar     = nullptr;
 static unsigned long         gLastBattMs   = 0;
 static unsigned long         gLastRefreshMs = 0;
@@ -146,13 +151,14 @@ static void renderUpcoming(const String& src, const String& detail) {
 static void renderMessage(const String& msg) {
     String hdr, src, detail;
     parsePayload(msg, hdr, src, detail);
-    // Modo adaptativo: quality solo cuando cambia el fondo (FREE↔BUSY); fast para detalles
+    M5.Display.wakeup();  // activa el controlador e-ink antes de dibujar
     M5.Display.setEpdMode(isMajorTransition(gCurrentMsg, msg)
         ? epd_mode_t::epd_quality
         : epd_mode_t::epd_fast);
     if      (hdr == "FREE")     renderFree();
     else if (hdr == "UPCOMING") renderUpcoming(src, detail);
     else                        renderBusy(src, detail);
+    M5.Display.sleep();   // controlador a bajo consumo — la imagen e-ink se mantiene sin corriente
 }
 
 // ─── BLE callbacks (static — sin fugas de memoria) ───────────────────────────
@@ -168,8 +174,10 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         // No reanudamos advertising aquí — solo en onDisconnect
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
-        gConnected = false;
+        gConnected      = false;
+        gDisconnectedMs = millis();  // arrancar el contador para auto-FREE
         NimBLEDevice::getAdvertising()->start();
+        if (gMainTask) xTaskNotifyGive(gMainTask);  // despertar el loop para recalcular timeout
     }
 };
 
@@ -284,8 +292,10 @@ void loop() {
     // Re-assert hold pin en cada tick — guard contra glitch de GPIO
     digitalWrite(GPIO_NUM_12, HIGH);
 
-    // Calcular tiempo de espera: si hay un refresco pendiente en debounce, esperar solo
-    // el tiempo restante; si no hay nada pendiente, bloquear hasta 1 minuto.
+    // Calcular tiempo de espera óptimo:
+    //  - refresco pendiente en debounce → esperar solo el tiempo restante
+    //  - desconectado → despertar justo cuando expire AUTO_FREE_TIMEOUT
+    //  - conectado idle → bloquear hasta 1 minuto
     TickType_t waitTicks;
     {
         bool pending;
@@ -294,17 +304,23 @@ void loop() {
         portEXIT_CRITICAL(&gMsgMux);
 
         if (pending) {
-            unsigned long elapsed  = millis() - gLastRefreshMs;
+            unsigned long elapsed   = millis() - gLastRefreshMs;
             uint32_t      remaining = (elapsed < REFRESH_DEBOUNCE_MS)
                                         ? (REFRESH_DEBOUNCE_MS - (uint32_t)elapsed + 10)
                                         : 0;
+            waitTicks = pdMS_TO_TICKS(remaining);
+        } else if (!gConnected && gCurrentMsg != "FREE") {
+            // Despertar exactamente cuando expire el timeout de auto-FREE
+            unsigned long sinceDisc = millis() - gDisconnectedMs;
+            uint32_t remaining = (sinceDisc < AUTO_FREE_TIMEOUT_MS)
+                                    ? (AUTO_FREE_TIMEOUT_MS - (uint32_t)sinceDisc + 10)
+                                    : 0;
             waitTicks = pdMS_TO_TICKS(remaining);
         } else {
             waitTicks = pdMS_TO_TICKS(TASK_TIMEOUT_MS);
         }
     }
 
-    // Bloquea (+ light sleep automático del SO) hasta notificación BLE o timeout
     if (waitTicks > 0) ulTaskNotifyTake(pdTRUE, waitTicks);
 
     M5.update();
@@ -333,6 +349,19 @@ void loop() {
             gPrefs.putString("msg", toRender);
             gLastPersistedMsg = toRender;
         }
+    }
+
+    // ── Auto-FREE tras desconexión prolongada ─────────────────────────────────
+    // Si el agente lleva más de 5 min fuera de rango y la pantalla muestra algo
+    // distinto de FREE, limpiarla: el estado ya no es fiable.
+    if (!gConnected
+        && gCurrentMsg != "FREE"
+        && millis() - gDisconnectedMs >= AUTO_FREE_TIMEOUT_MS) {
+        portENTER_CRITICAL(&gMsgMux);
+        gPendingMsg  = "FREE";
+        gNeedsRedraw = true;
+        portEXIT_CRITICAL(&gMsgMux);
+        if (gMainTask) xTaskNotifyGive(gMainTask);
     }
 
     // ── Batería cada 10 min — notify solo si cambió ───────────────────────────
