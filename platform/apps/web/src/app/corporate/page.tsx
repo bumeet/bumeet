@@ -57,7 +57,7 @@ const T = {
       h2: 'Download BUMEET Agent',
       sub: 'The background agent runs silently on your computer and updates your door display automatically over Bluetooth.',
       btn: 'Download',
-      notes: { mac: 'Double-click the DMG · installer handles everything', win: 'Run the .exe directly', linux: 'chmod +x before running' },
+      notes: { mac: 'If blocked: right-click the PKG → Open', win: 'Run the .exe directly', linux: 'chmod +x before running' },
       footer: 'View on GitHub · Latest release: v0.1.4',
     },
     b2b: {
@@ -149,7 +149,7 @@ const T = {
       h2: 'Descarga el agente BUMEET',
       sub: 'El agente corre silenciosamente en tu ordenador y actualiza la pantalla de tu puerta automáticamente vía Bluetooth.',
       btn: 'Descargar',
-      notes: { mac: 'Doble clic en el DMG · el instalador lo hace todo', win: 'Ejecuta el .exe directamente', linux: 'chmod +x antes de ejecutar' },
+      notes: { mac: 'Si macOS lo bloquea: clic derecho en el PKG → Abrir', win: 'Ejecuta el .exe directamente', linux: 'chmod +x antes de ejecutar' },
       footer: 'Ver en GitHub · Última versión: v0.1.4',
     },
     b2b: {

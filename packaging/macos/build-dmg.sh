@@ -50,6 +50,22 @@ DMG_STAGING="$WORK_DIR/dmg-staging"
 mkdir -p "$DMG_STAGING"
 cp "$PRODUCT_PKG" "$DMG_STAGING/Install BUMEET Agent.pkg"
 
+# Include Gatekeeper workaround instructions for unsigned builds
+cat > "$DMG_STAGING/If blocked by macOS.txt" <<'TXT'
+If macOS says it "cannot verify" the installer:
+
+  1. Right-click (or Control-click) "Install BUMEET Agent.pkg"
+  2. Choose "Open" from the menu
+  3. Click "Open" in the dialog that appears
+
+Why does this happen?
+  The installer is not yet signed with an Apple Developer ID.
+  This is a one-time workaround — your Mac will remember your choice.
+
+Alternatively:
+  System Settings → Privacy & Security → scroll down → "Open Anyway"
+TXT
+
 hdiutil create \
     -volname "BUMEET Agent $VERSION_CLEAN" \
     -srcfolder "$DMG_STAGING" \
