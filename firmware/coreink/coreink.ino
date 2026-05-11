@@ -233,9 +233,6 @@ static void initDisplay() {
 static void initBLE() {
     NimBLEDevice::init("BUMEET");
     NimBLEDevice::setPower(BLE_TX_POWER);
-    // Bonding con Just Works — dispositivo en zona pública, solo la app emparejada puede escribir
-    NimBLEDevice::setSecurityAuth(true, true, true);
-    NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
 
     NimBLEServer* pSrv = NimBLEDevice::createServer();
     pSrv->setCallbacks(&gServerCb);
@@ -244,7 +241,7 @@ static void initBLE() {
     NimBLEService*        pSvc  = pSrv->createService(SVC_UUID);
     NimBLECharacteristic* pChar = pSvc->createCharacteristic(
         CHAR_UUID,
-        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_AUTHEN
+        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
     );
     pChar->setCallbacks(&gWriteCb);
     pSvc->start();
