@@ -20,7 +20,6 @@ from bumeet_agent.detection.service import AgentOrchestrator
 from bumeet_agent.events.models import AgentEvent, EventTopic
 from bumeet_agent.logging import configure_logging, get_logger
 from bumeet_agent.simulation import run_simulation_session
-from bumeet_agent.ui.simulator import launch_simulation_viewer
 
 logger = get_logger(__name__)
 
@@ -261,6 +260,7 @@ def main() -> int:
 
     configure_logging()
     if args.simulate_ui:
+        from bumeet_agent.ui.simulator import launch_simulation_viewer  # noqa: PLC0415
         launch_simulation_viewer()
         return 0
 
