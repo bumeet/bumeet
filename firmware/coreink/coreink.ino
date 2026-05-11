@@ -52,7 +52,10 @@ static const uint32_t TASK_TIMEOUT_MS     = 60000;
 // Tiempo sin conexión antes de limpiar el estado a FREE.
 // 5 minutos: suficiente para cubrir pérdidas de señal breves (usuario en sala de reuniones),
 // pero no tan largo como para dejar BUSY en la puerta cuando el usuario ya se ha ido.
-static const uint32_t AUTO_FREE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
+static const uint32_t AUTO_FREE_TIMEOUT_MS   = 5UL  * 60UL * 1000UL;
+// Reiniciar advertising periódicamente para evitar que NimBLE deje de anunciar
+// tras horas sin conexión (bug conocido en algunos builds de NimBLE-Arduino).
+static const uint32_t ADV_RESTART_INTERVAL_MS = 30UL * 60UL * 1000UL;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static Preferences           gPrefs;
@@ -62,9 +65,10 @@ static String                gLastPersistedMsg;  // último valor escrito en NVS
 static volatile bool         gNeedsRedraw    = false;
 static bool                  gConnected      = false;
 static unsigned long         gDisconnectedMs = 0;  // millis() cuando se perdió la última conexión
-static NimBLECharacteristic* pBattChar     = nullptr;
-static unsigned long         gLastBattMs   = 0;
-static unsigned long         gLastRefreshMs = 0;
+static NimBLECharacteristic* pBattChar       = nullptr;
+static unsigned long         gLastBattMs     = 0;
+static unsigned long         gLastRefreshMs  = 0;
+static unsigned long         gLastAdvRestart = 0;
 static TaskHandle_t          gMainTask     = nullptr;
 static portMUX_TYPE          gMsgMux       = portMUX_INITIALIZER_UNLOCKED;
 
@@ -316,6 +320,14 @@ void loop() {
                                     ? (AUTO_FREE_TIMEOUT_MS - (uint32_t)sinceDisc + 10)
                                     : 0;
             waitTicks = pdMS_TO_TICKS(remaining);
+        } else if (!gConnected) {
+            // Despertar antes del próximo reinicio de advertising
+            unsigned long sinceRestart = millis() - gLastAdvRestart;
+            uint32_t remaining = (sinceRestart < ADV_RESTART_INTERVAL_MS)
+                                    ? (ADV_RESTART_INTERVAL_MS - (uint32_t)sinceRestart + 10)
+                                    : 0;
+            // Nunca esperar más de 1 min para mantener la capacidad de respuesta
+            waitTicks = pdMS_TO_TICKS(min(remaining, (uint32_t)TASK_TIMEOUT_MS));
         } else {
             waitTicks = pdMS_TO_TICKS(TASK_TIMEOUT_MS);
         }
@@ -362,6 +374,15 @@ void loop() {
         gNeedsRedraw = true;
         portEXIT_CRITICAL(&gMsgMux);
         if (gMainTask) xTaskNotifyGive(gMainTask);
+    }
+
+    // ── Watchdog advertising: reiniciar cada 30 min si no hay conexión ────────
+    // NimBLE puede dejar de anunciar internamente tras horas sin conexión.
+    // Forzar start() es idempotente si ya está corriendo.
+    if (!gConnected && millis() - gLastAdvRestart >= ADV_RESTART_INTERVAL_MS) {
+        gLastAdvRestart = millis();
+        NimBLEDevice::getAdvertising()->stop();
+        NimBLEDevice::getAdvertising()->start();
     }
 
     // ── Batería cada 10 min — notify solo si cambió ───────────────────────────

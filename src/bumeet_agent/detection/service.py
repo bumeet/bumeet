@@ -65,19 +65,39 @@ class AgentOrchestrator:
         self._api = api_settings
         self._pending_send: asyncio.Task[None] | None = None
         self._api_poll_task: asyncio.Task[None] | None = None
+        self._heartbeat_task: asyncio.Task[None] | None = None
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
+        self._last_payload: bytes = b"FREE"  # last payload sent — used by heartbeat
+
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
 
     async def start_api_polling(self) -> None:
-        """Poll /integrations/busy on interval and push to CoreInk."""
+        """Poll /integrations/live-status on interval and push to CoreInk."""
         if not self._api or not self._api.is_configured:
             return
         self._api_poll_task = asyncio.create_task(self._api_poll_loop())
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def stop_api_polling(self) -> None:
-        if self._api_poll_task and not self._api_poll_task.done():
-            self._api_poll_task.cancel()
+        for task in (self._api_poll_task, self._heartbeat_task):
+            if task and not task.done():
+                task.cancel()
+
+    async def _heartbeat_loop(self) -> None:
+        """Periodically re-send the last known payload.
+
+        Ensures the CoreInk recovers its display state after a BLE dropout,
+        device reboot, or any missed state change.
+        """
+        while True:
+            await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
+            if self._pending_send and not self._pending_send.done():
+                continue  # an active send is already in flight — skip
+            self._pending_send = asyncio.create_task(
+                self._ble_client.send_when_available(self._last_payload)
+            )
 
     async def _api_poll_loop(self) -> None:
         assert self._api is not None
@@ -117,6 +137,7 @@ class AgentOrchestrator:
         else:
             payload = b"FREE"
 
+        self._last_payload = payload
         if self._pending_send and not self._pending_send.done():
             self._pending_send.cancel()
         self._pending_send = asyncio.create_task(self._ble_client.send_when_available(payload))
