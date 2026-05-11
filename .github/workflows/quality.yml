@@ -175,7 +175,7 @@ jobs:
       - name: Compile
         run: |
           arduino-cli compile \
-            --fqbn m5stack:esp32:m5stack_coreink \
+            --fqbn m5stack:esp32:m5stack_coreink:PartitionScheme=huge_app \
             firmware/coreink/coreink.ino
 
   # ── Terraform ────────────────────────────────────────────────────────────────
