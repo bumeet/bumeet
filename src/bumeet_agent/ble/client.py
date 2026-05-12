@@ -20,15 +20,21 @@ except Exception:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-# How long to scan for the device on each retry attempt.
-_SCAN_TIMEOUT_S = 15.0
-# Gap between retry attempts (CoreInk wakes every 10 min; retry every 30 s so
-# we catch the next available advertising window quickly).
-_RETRY_INTERVAL_S = 30.0
+_RECONNECT_INTERVAL_S = 5.0
+# macOS CoreBluetooth drops idle BLE connections after ~45 s with no traffic.
+# Sending a keepalive write every 20 s prevents this.
+_KEEPALIVE_INTERVAL_S = 20.0
+# Generous timeout so write_now survives the initial ~30 s scan+connect.
+_WRITE_WAIT_S = 60.0
 
 
 class BleClient:
-    """Async BLE GATT client for sending busy/free state changes."""
+    """Async BLE GATT client with persistent connection and keepalive.
+
+    Maintains a persistent background connection so state changes are
+    delivered in <100 ms. Sends a keepalive write every 20 s to prevent
+    macOS from dropping the idle link.
+    """
 
     def __init__(
         self,
@@ -41,16 +47,119 @@ class BleClient:
         self._client_factory = client_factory or self._default_client_factory
         self._client: Any | None = None
         self._lock = asyncio.Lock()
+        self._keep_connected = False
+        self._connection_task: asyncio.Task[None] | None = None
+        self._connected_event = asyncio.Event()
+        self._last_payload: bytes = b"FREE"
+        # Monotonic time of the last successful GATT write (keepalive or real).
+        # Shared across both paths so keepalive backs off after a real write.
+        self._last_write_time: float = 0.0
 
     @property
     def is_connected(self) -> bool:
         return bool(self._client and getattr(self._client, "is_connected", False))
 
+    # ── Persistent connection ─────────────────────────────────────────────────
+
+    async def start_persistent_connection(self) -> None:
+        """Start background task that keeps the BLE connection alive."""
+        if not self._settings.is_configured:
+            return
+        self._keep_connected = True
+        self._connection_task = asyncio.create_task(self._connection_loop())
+
+    async def stop_persistent_connection(self) -> None:
+        self._keep_connected = False
+        if self._connection_task and not self._connection_task.done():
+            self._connection_task.cancel()
+        await self.disconnect()
+
+    async def _connection_loop(self) -> None:
+        """Reconnect on drops; send keepalive every 20 s to beat macOS idle timeout."""
+        while self._keep_connected:
+            now = asyncio.get_event_loop().time()
+
+            if not self.is_connected:
+                self._connected_event.clear()
+                try:
+                    await self.connect()
+                    # Re-send current state immediately after reconnect so the
+                    # e-ink display is always in sync even after a firmware reboot.
+                    assert self._client is not None
+                    await self._client.write_gatt_char(
+                        self._settings.characteristic_uuid,
+                        self._last_payload,
+                        response=False,
+                    )
+                    self._last_write_time = asyncio.get_event_loop().time()
+                    self._connected_event.set()
+                    logger.debug("BLE reconnect sync sent")
+                except Exception as exc:
+                    logger.debug("Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S)
+                    await asyncio.sleep(_RECONNECT_INTERVAL_S)
+                    continue
+
+            elif now - self._last_write_time >= _KEEPALIVE_INTERVAL_S:
+                # Re-write last payload only if no real write happened recently.
+                # Firmware deduplicates identical payloads — no display refresh.
+                try:
+                    assert self._client is not None
+                    await self._client.write_gatt_char(
+                        self._settings.characteristic_uuid,
+                        self._last_payload,
+                        response=False,
+                    )
+                    self._last_write_time = asyncio.get_event_loop().time()
+                    logger.debug("BLE keepalive sent")
+                except Exception as exc:
+                    logger.debug("Keepalive failed: %s — will reconnect", exc)
+                    await self.disconnect()
+                    continue
+
+            await asyncio.sleep(1)
+
+    # ── Write ─────────────────────────────────────────────────────────────────
+
+    async def write_now(self, payload: bytes) -> None:
+        """Write payload via persistent connection.
+
+        Waits up to 60 s for the connection to be ready (covers initial
+        scan+connect), then writes. Retries once on transient failure.
+        """
+        if not self._settings.is_configured:
+            return
+
+        self._last_payload = payload
+
+        try:
+            await asyncio.wait_for(self._connected_event.wait(), timeout=_WRITE_WAIT_S)
+        except TimeoutError:
+            logger.warning("BLE write skipped — device not reachable within %.0fs", _WRITE_WAIT_S)
+            return
+
+        for attempt in range(2):
+            try:
+                await self.send_payload(payload)
+                return
+            except Exception as exc:
+                logger.debug("Write attempt %d failed: %s", attempt + 1, exc)
+                self._connected_event.clear()
+                await self.disconnect()
+                if attempt == 0:
+                    try:
+                        await asyncio.wait_for(
+                            self._connected_event.wait(), timeout=_WRITE_WAIT_S
+                        )
+                    except TimeoutError:
+                        break
+
+        logger.warning("BLE write failed after retries")
+
+    # ── Low-level connection management ──────────────────────────────────────
+
     async def connect(self) -> None:
         if not self._settings.is_configured:
-            raise ValueError(
-                "BLE settings are incomplete. device_address and characteristic_uuid are required."
-            )
+            raise ValueError("BLE settings incomplete.")
 
         async with self._lock:
             if self.is_connected:
@@ -85,6 +194,7 @@ class BleClient:
                     await self._client.disconnect()
             finally:
                 self._client = None
+                self._connected_event.clear()
                 await self._event_bus.emit(
                     EventTopic.BLE_DISCONNECTED.value,
                     address=self._settings.device_address,
@@ -93,17 +203,6 @@ class BleClient:
     async def ensure_connected(self) -> None:
         if not self.is_connected:
             await self.connect()
-
-    async def send_state(self, state: PresenceState) -> bytes:
-        payload = payload_for_state(state, self._settings)
-        await self.send_payload(payload)
-        return payload
-
-    async def set_busy(self) -> bytes:
-        return await self.send_state(PresenceState.BUSY)
-
-    async def set_free(self) -> bytes:
-        return await self.send_state(PresenceState.FREE)
 
     async def send_payload(self, payload: bytes) -> None:
         await self.ensure_connected()
@@ -115,6 +214,7 @@ class BleClient:
                 payload,
                 response=self._settings.write_with_response,
             )
+            self._last_write_time = asyncio.get_event_loop().time()
         except Exception as exc:
             await self._event_bus.emit(
                 EventTopic.BLE_ERROR.value,
@@ -129,66 +229,16 @@ class BleClient:
             payload_hex=payload.hex(),
         )
 
+    async def send_state(self, state: PresenceState) -> bytes:
+        payload = payload_for_state(state, self._settings)
+        await self.send_payload(payload)
+        return payload
+
+    # ── Fallback for heartbeat ────────────────────────────────────────────────
+
     async def send_when_available(self, payload: bytes, *, give_up_after: float = 3600.0) -> None:
-        """Send payload as soon as the device is reachable, retrying every 30 s.
-
-        The CoreInk wakes every 10 minutes for a 20-second advertising window.
-        This method scans for the device and connects the moment it appears.
-        Retries until success or give_up_after seconds have elapsed.
-        """
-        if not self._settings.is_configured:
-            logger.warning("BLE not configured — skipping send")
-            return
-
-        deadline = asyncio.get_event_loop().time() + give_up_after
-        attempt = 0
-
-        while asyncio.get_event_loop().time() < deadline:
-            attempt += 1
-            try:
-                # Scan first: wait until the device advertises before connecting.
-                # This is more reliable than blind connect when the device sleeps.
-                logger.debug("BLE scan attempt %d for %s", attempt, self._settings.device_address)
-                found = await self._scan_for_device(timeout=_SCAN_TIMEOUT_S)
-                if not found:
-                    logger.debug(
-                        "Device not found in scan, retrying in %ds", int(_RETRY_INTERVAL_S)
-                    )
-                    await asyncio.sleep(_RETRY_INTERVAL_S)
-                    continue
-
-                await self.disconnect()  # clean up any stale connection
-                await self.send_payload(payload)
-                await self.disconnect()
-                logger.debug("Payload delivered after %d attempt(s)", attempt)
-                return
-
-            except Exception as exc:
-                logger.debug("Delivery attempt %d failed: %s", attempt, exc)
-                await self.disconnect()
-                await asyncio.sleep(_RETRY_INTERVAL_S)
-
-        logger.warning("Could not deliver BLE payload within %.0f s", give_up_after)
-
-    async def _scan_for_device(self, timeout: float) -> bool:
-        """Return True if the configured device address is seen advertising."""
-        if BleakScanner is None:
-            # bleak unavailable — optimistically try to connect directly
-            return True
-
-        target = self._settings.device_address.upper()
-        found_event = asyncio.Event()
-
-        def _cb(device: Any, _adv: Any) -> None:
-            if device.address.upper() == target:
-                found_event.set()
-
-        try:
-            async with BleakScanner(detection_callback=_cb):
-                await asyncio.wait_for(found_event.wait(), timeout=timeout)
-            return True
-        except TimeoutError:
-            return False
+        """Fallback: alias to write_now for heartbeat compatibility."""
+        await self.write_now(payload)
 
     def _default_client_factory(self, address: str) -> Any:
         if BleakClient is None:

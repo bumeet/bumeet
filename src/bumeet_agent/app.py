@@ -203,6 +203,7 @@ async def run(
     if container.settings.runtime.auto_connect_on_start and container.settings.ble.is_configured:
         await container.ble_client.connect()
 
+    await container.ble_client.start_persistent_connection()
     await orchestrator.start_api_polling()
 
     stop_event = asyncio.Event()
@@ -228,7 +229,7 @@ async def run(
             detection_task.cancel()
         await orchestrator.stop_api_polling()
         await container.event_bus.emit(EventTopic.APP_STOPPING.value)
-        await container.ble_client.disconnect()
+        await container.ble_client.stop_persistent_connection()
 
     return 0
 

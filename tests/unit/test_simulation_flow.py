@@ -29,14 +29,14 @@ class SimulationFlowTests(unittest.IsolatedAsyncioTestCase):
             event_bus=event_bus,
         )
 
-        # Record every payload passed to send_when_available instead of
-        # exercising real BLE scanning (no radio in CI).
+        # Record every payload passed to write_now instead of
+        # exercising real BLE in CI (no radio available).
         sent_payloads: list[bytes] = []
 
-        async def _fake_send(payload: bytes, *, give_up_after: float = 3600.0) -> None:
+        async def _fake_write(payload: bytes) -> None:
             sent_payloads.append(payload)
 
-        ble_client.send_when_available = _fake_send  # type: ignore[method-assign]
+        ble_client.write_now = _fake_write  # type: ignore[method-assign]
 
         state_machine = PresenceStateMachine()
         orchestrator = AgentOrchestrator(

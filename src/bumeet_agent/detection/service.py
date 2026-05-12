@@ -96,7 +96,7 @@ class AgentOrchestrator:
             if self._pending_send and not self._pending_send.done():
                 continue  # an active send is already in flight — skip
             self._pending_send = asyncio.create_task(
-                self._ble_client.send_when_available(self._last_payload)
+                self._ble_client.write_now(self._last_payload)
             )
 
     async def _api_poll_loop(self) -> None:
@@ -140,7 +140,7 @@ class AgentOrchestrator:
         self._last_payload = payload
         if self._pending_send and not self._pending_send.done():
             self._pending_send.cancel()
-        self._pending_send = asyncio.create_task(self._ble_client.send_when_available(payload))
+        self._pending_send = asyncio.create_task(self._ble_client.write_now(payload))
 
     async def handle_snapshot(self, snapshot: HardwareSnapshot) -> None:
         await self._event_bus.emit(
