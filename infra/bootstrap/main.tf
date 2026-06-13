@@ -49,6 +49,11 @@ resource "azurerm_storage_account" "tfstate" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
+  # State can contain secrets — never allow anonymous public access, force TLS.
+  allow_nested_items_to_be_public = false
+  enable_https_traffic_only       = true
+  min_tls_version                 = "TLS1_2"
+
   blob_properties {
     versioning_enabled = true
     delete_retention_policy {

@@ -36,8 +36,14 @@ jobs:
       - name: Scan push for secrets
         if: github.event_name == 'push'
         run: |
+          # Scan the full push range (all new commits), not just the tip commit,
+          # so a secret added in an earlier commit of the push isn't missed.
+          RANGE="${{ github.event.before }}..${{ github.sha }}"
+          if ! git rev-parse --verify --quiet "${{ github.event.before }}^{commit}"; then
+            RANGE="--all"   # first push / force-push with no valid base: scan everything
+          fi
           gitleaks git \
-            --log-opts="-1" \
+            --log-opts="$RANGE" \
             --redact \
             --verbose \
             --exit-code=1

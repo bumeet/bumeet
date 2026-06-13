@@ -42,6 +42,7 @@ jobs:
       - name: Terraform Apply
         run: |
           terraform apply \
+            -lock-timeout=5m \
             -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
             -auto-approve
 
@@ -67,5 +68,6 @@ jobs:
       - name: Terraform Apply
         run: |
           terraform apply \
+            -lock-timeout=5m \
             -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_PROD }}" \
             -auto-approve

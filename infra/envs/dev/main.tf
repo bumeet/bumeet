@@ -27,6 +27,6 @@ variable "pg_admin_password" {
   sensitive = true
 }
 
-output "api_url"          { value = module.bumeet.api_url }
-output "frontend_url"     { value = module.bumeet.frontend_url }
+output "api_url" { value = module.bumeet.api_url }
+output "frontend_url" { value = module.bumeet.frontend_url }
 output "acr_login_server" { value = module.bumeet.acr_login_server }

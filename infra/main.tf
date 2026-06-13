@@ -38,6 +38,7 @@ module "key_vault" {
   object_id           = data.azurerm_client_config.current.object_id
 
   soft_delete_retention_days = var.key_vault_soft_delete_retention_days
+  purge_protection_enabled   = var.env == "prod"
   tags                       = local.common_tags
 }
 
@@ -56,6 +57,9 @@ module "postgresql" {
   admin_login    = var.pg_admin_login
   admin_password = var.pg_admin_password
   db_name        = var.pg_db_name
+
+  backup_retention_days        = var.pg_backup_retention_days
+  geo_redundant_backup_enabled = var.pg_geo_redundant_backup_enabled
 
   tags = local.common_tags
 }
@@ -137,11 +141,71 @@ module "app_service" {
     FRONTEND_URL = module.static_web_app.default_hostname
     NODE_ENV     = var.env == "prod" ? "production" : "development"
     PORT         = "8080"
+
+    APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.main.connection_string
   }
 
   tags = local.common_tags
 
   depends_on = [module.key_vault]
+}
+
+# ── Observability: Log Analytics + Application Insights + alerting ────────────
+
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "log-${local.prefix}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  tags                = local.common_tags
+}
+
+resource "azurerm_application_insights" "main" {
+  name                = "appi-${local.prefix}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  workspace_id        = azurerm_log_analytics_workspace.main.id
+  application_type    = "Node.JS"
+  tags                = local.common_tags
+}
+
+resource "azurerm_monitor_action_group" "main" {
+  name                = "ag-${local.prefix}"
+  resource_group_name = azurerm_resource_group.main.name
+  short_name          = "bumeet"
+
+  email_receiver {
+    name          = "team"
+    email_address = var.alert_email
+  }
+
+  tags = local.common_tags
+}
+
+# Alert when the API starts returning 5xx errors.
+resource "azurerm_monitor_metric_alert" "api_5xx" {
+  name                = "alert-${local.prefix}-api-5xx"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [module.app_service.id]
+  description         = "API is returning HTTP 5xx errors"
+  severity            = 2
+  frequency           = "PT5M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "Microsoft.Web/sites"
+    metric_name      = "Http5xx"
+    aggregation      = "Total"
+    operator         = "GreaterThan"
+    threshold        = 10
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
 }
 
 # ── Key Vault Secrets ─────────────────────────────────────────────────────────
