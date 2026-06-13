@@ -20,7 +20,7 @@ export class UsersController {
 
   @Patch('me/password')
   changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
-    return this.users.changePassword(req.user.id, dto);
+    return this.users.changePassword(req.user.id, dto, req.user.sessionId);
   }
 
   @Delete('me')

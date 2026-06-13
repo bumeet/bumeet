@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { OAuthStateService } from './oauth-state.service';
 
 @Injectable()
 export class TeamsService {
@@ -14,6 +15,7 @@ export class TeamsService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private oauthState: OAuthStateService,
   ) {}
 
   private get redirectUri() {
@@ -27,14 +29,14 @@ export class TeamsService {
       redirect_uri: this.redirectUri,
       scope: this.SCOPES,
       response_mode: 'query',
-      state: Buffer.from(userId).toString('base64'),
+      state: this.oauthState.issue(userId),
       prompt: 'consent',
     });
     return `${this.AUTH_URL}?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string) {
-    const userId = Buffer.from(state, 'base64').toString('utf8');
+    const userId = this.oauthState.consume(state);
 
     const tokens = await this.exchangeCode(code);
     const profile = await this.getProfile(tokens.access_token);

@@ -7,6 +7,7 @@ import { SlackService } from './slack.service';
 import { TeamsService } from './teams.service';
 import { ZoomService } from './zoom.service';
 import { WebexService } from './webex.service';
+import { OAuthStateService } from './oauth-state.service';
 
 @Module({
   providers: [
@@ -17,6 +18,7 @@ import { WebexService } from './webex.service';
     TeamsService,
     ZoomService,
     WebexService,
+    OAuthStateService,
   ],
   controllers: [IntegrationsController],
   exports: [

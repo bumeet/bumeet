@@ -29,13 +29,19 @@ export class IntegrationsService implements OnModuleInit {
     private webex: WebexService,
   ) {}
 
-  // ── Auto-sync calendars every 15 min ──────────────────────────────────────
+  private syncing = false;
+
+  // ── Auto-sync calendars every 5 min ───────────────────────────────────────
+  // NOTE: single-instance scheduler. With >1 API instance this should move to a
+  // distributed lock (Redis) so the sync doesn't run N times concurrently.
   onModuleInit() {
-    setInterval(() => this.syncAllCalendars(), 60_000);  // every 60 s
-    setTimeout(() => this.syncAllCalendars(), 5_000);    // initial sync 5 s after boot
+    setInterval(() => this.syncAllCalendars(), 5 * 60_000); // every 5 min
+    setTimeout(() => this.syncAllCalendars(), 5_000);       // initial sync 5 s after boot
   }
 
   private async syncAllCalendars() {
+    if (this.syncing) return; // skip if the previous run hasn't finished
+    this.syncing = true;
     try {
       const integrations = await this.prisma.integrationAccount.findMany({
         where: { provider: { in: ['google', 'microsoft', 'zoom', 'webex'] }, status: 'active' },
@@ -51,6 +57,8 @@ export class IntegrationsService implements OnModuleInit {
       this.logger.log(`Auto-synced ${integrations.length} calendar integration(s)`);
     } catch (e) {
       this.logger.warn(`Auto-sync error: ${e}`);
+    } finally {
+      this.syncing = false;
     }
   }
 
@@ -335,7 +343,8 @@ export class IntegrationsService implements OnModuleInit {
     });
     if (!integration) throw new NotFoundException('Integration not found');
 
-    await this.prisma.calendarEvent.deleteMany({ where: { integrationId } });
+    // Deleting the integration cascades to its calendarEvents (onDelete: Cascade),
+    // so the explicit deleteMany was redundant and non-atomic.
     await this.prisma.integrationAccount.delete({ where: { id: integrationId } });
     return { success: true };
   }

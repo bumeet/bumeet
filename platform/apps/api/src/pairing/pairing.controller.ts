@@ -3,17 +3,20 @@ import { IsString, Length, Matches } from 'class-validator';
 import { PairingService } from './pairing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+// Charset must match the agent's pairing alphabet (no ambiguous 0/O/1/I/L).
+const CODE_CHARSET = /^[BCDFGHJKMNPQRSTVWXYZ2345689]+$/i;
+
 class RegisterDto {
   @IsString()
   @Length(6, 6)
-  @Matches(/^[A-Z0-9]+$/)
+  @Matches(CODE_CHARSET)
   code: string;
 }
 
 class ApproveDto {
   @IsString()
   @Length(6, 6)
-  @Matches(/^[A-Za-z0-9]+$/)
+  @Matches(CODE_CHARSET)
   code: string;
 }
 

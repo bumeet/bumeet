@@ -30,7 +30,8 @@ export class DeviceService {
       where: { id: userId },
       select: { batteryLevel: true, batteryUpdatedAt: true },
     });
-    if (!user?.batteryLevel || !user.batteryUpdatedAt) return null;
+    // Check null explicitly so a genuine 0% battery isn't dropped (!0 === true).
+    if (!user || user.batteryLevel == null || user.batteryUpdatedAt == null) return null;
     return { level: user.batteryLevel, updatedAt: user.batteryUpdatedAt.toISOString() };
   }
 

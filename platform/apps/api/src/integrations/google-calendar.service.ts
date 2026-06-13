@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { google, calendar_v3 } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service';
+import { OAuthStateService } from './oauth-state.service';
 
 @Injectable()
 export class GoogleCalendarService {
@@ -19,6 +20,7 @@ export class GoogleCalendarService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private oauthState: OAuthStateService,
   ) {}
 
   private createOAuthClient() {
@@ -39,12 +41,12 @@ export class GoogleCalendarService {
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/calendar.readonly',
       ],
-      state: Buffer.from(userId).toString('base64'),
+      state: this.oauthState.issue(userId),
     });
   }
 
   async handleCallback(code: string, state: string) {
-    const userId = Buffer.from(state, 'base64').toString('utf8');
+    const userId = this.oauthState.consume(state);
 
     const oauth2Client = this.createOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
@@ -104,17 +106,25 @@ export class GoogleCalendarService {
       });
     }
 
-    // Auto-refresh token if expired
-    oauth2Client.on('tokens', async (tokens: any) => {
-      if (tokens.access_token) {
-        await this.prisma.integrationAccount.update({
-          where: { id: integrationId },
-          data: {
-            accessToken: tokens.access_token,
-            tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
-          },
-        });
-      }
+    // Persist refreshed tokens (googleapis emits 'tokens' on auto-refresh).
+    // Wrap the side-effect so a DB hiccup can't raise an unhandled rejection, and
+    // persist a rotated refresh_token when Google sends one.
+    oauth2Client.on('tokens', (tokens: any) => {
+      void (async () => {
+        try {
+          if (!tokens.access_token) return;
+          await this.prisma.integrationAccount.update({
+            where: { id: integrationId },
+            data: {
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token ?? undefined,
+              tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+            },
+          });
+        } catch (err) {
+          this.logger.warn(`Failed to persist refreshed Google tokens: ${err}`);
+        }
+      })();
     });
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
@@ -186,7 +196,9 @@ export class GoogleCalendarService {
       upserted++;
     }
 
-    // Remove cancelled/deleted events no longer returned by Google
+    // Remove cancelled/deleted events no longer returned by Google. Reaching here
+    // means the paginated fetch above completed without throwing (a partial fetch
+    // would have rejected and skipped this reconciliation), so it is safe to prune.
     const returnedIds = allEvents.map((e) => e.id).filter(Boolean) as string[];
     if (returnedIds.length > 0) {
       await this.prisma.calendarEvent.deleteMany({
