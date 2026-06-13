@@ -41,6 +41,8 @@ model Session {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model IntegrationAccount {
@@ -63,6 +65,7 @@ model IntegrationAccount {
   calendarEvents CalendarEvent[]
 
   @@unique([userId, provider, providerAccountId])
+  @@index([userId])
 }
 
 model CalendarEvent {
@@ -84,6 +87,8 @@ model CalendarEvent {
   integration IntegrationAccount @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   @@unique([integrationId, externalId])
+  @@index([userId, startAt])
+  @@index([integrationId])
 }
 
 model MessageToDisplay {
@@ -98,4 +103,6 @@ model MessageToDisplay {
   createdAt   DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

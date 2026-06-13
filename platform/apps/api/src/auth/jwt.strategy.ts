@@ -12,7 +12,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: config.get('JWT_SECRET') || 'fallback-secret',
+      // No fallback secret — getOrThrow surfaces a misconfiguration at boot.
+      secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
@@ -26,6 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Session expired');
     }
 
-    return session.user;
+    // Carry the sessionId so logout/password-change can target the exact session.
+    return { ...session.user, sessionId: session.id };
   }
 }

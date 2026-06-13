@@ -18,21 +18,28 @@ export class MessagesService {
       data: { userId, content, status: 'pending', permanent },
     });
 
-    // Permanent messages stay until explicitly cancelled — no auto-delivery simulation
+    // Permanent messages stay until explicitly cancelled — no auto-delivery simulation.
+    // NOTE: this in-process setTimeout simulation is best-effort only — it is lost on
+    // restart and does not span instances. A durable job (BullMQ on the existing
+    // ioredis) should replace it; for now we re-read status so a cancel isn't
+    // overwritten, and swallow errors so a dropped DB connection can't crash the process.
     if (!permanent) {
-      setTimeout(async () => {
-        await this.prisma.messageToDisplay.update({
-          where: { id: message.id },
-          data: { status: 'sent', sentAt: new Date() },
-        });
-      }, 2000);
-
-      setTimeout(async () => {
-        await this.prisma.messageToDisplay.update({
-          where: { id: message.id },
-          data: { status: 'delivered', deliveredAt: new Date() },
-        });
-      }, 7000);
+      const advance = async (status: 'sent' | 'delivered', stamp: 'sentAt' | 'deliveredAt') => {
+        try {
+          const current = await this.prisma.messageToDisplay.findUnique({
+            where: { id: message.id },
+          });
+          if (!current || current.status === 'cancelled') return;
+          await this.prisma.messageToDisplay.update({
+            where: { id: message.id },
+            data: { status, [stamp]: new Date() },
+          });
+        } catch {
+          /* best-effort simulation — ignore */
+        }
+      };
+      setTimeout(() => void advance('sent', 'sentAt'), 2000);
+      setTimeout(() => void advance('delivered', 'deliveredAt'), 7000);
     }
 
     return message;

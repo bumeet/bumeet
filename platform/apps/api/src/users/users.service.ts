@@ -24,7 +24,7 @@ export class UsersService {
     });
   }
 
-  async changePassword(id: string, dto: ChangePasswordDto) {
+  async changePassword(id: string, dto: ChangePasswordDto, currentSessionId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user?.passwordHash) throw new UnauthorizedException('No password set');
 
@@ -33,6 +33,11 @@ export class UsersService {
 
     const passwordHash = await argon2.hash(dto.newPassword);
     await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+
+    // Revoke every other session so a leaked old session can't survive a password change.
+    await this.prisma.session.deleteMany({
+      where: { userId: id, NOT: currentSessionId ? { id: currentSessionId } : undefined },
+    });
     return { success: true };
   }
 

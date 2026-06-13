@@ -45,7 +45,7 @@ export class AuthService {
 
     const token = this.jwt.sign(
       { sub: userId, sessionId: session.id },
-      { secret: this.config.get('JWT_SECRET') || 'fallback-secret', expiresIn: '7d' },
+      { secret: this.config.getOrThrow<string>('JWT_SECRET'), expiresIn: '7d' },
     );
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

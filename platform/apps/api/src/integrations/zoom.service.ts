@@ -1,10 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { OAuthStateService } from './oauth-state.service';
 
 @Injectable()
 export class ZoomService {
   private readonly logger = new Logger(ZoomService.name);
+  // In-flight refreshes per integration (same process) so concurrent calls don't
+  // fire multiple refreshes and clobber a rotated refresh_token.
+  private readonly refreshLocks = new Map<string, Promise<string>>();
+  private static readonly REFRESH_SKEW_MS = 2 * 60 * 1000;
 
   private readonly AUTH_URL = 'https://zoom.us/oauth/authorize';
   private readonly TOKEN_URL = 'https://zoom.us/oauth/token';
@@ -13,6 +18,7 @@ export class ZoomService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private oauthState: OAuthStateService,
   ) {}
 
   private get redirectUri() {
@@ -24,13 +30,13 @@ export class ZoomService {
       client_id: this.config.get('ZOOM_CLIENT_ID')!,
       response_type: 'code',
       redirect_uri: this.redirectUri,
-      state: Buffer.from(userId).toString('base64'),
+      state: this.oauthState.issue(userId),
     });
     return `${this.AUTH_URL}?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string) {
-    const userId = Buffer.from(state, 'base64').toString('utf8');
+    const userId = this.oauthState.consume(state);
     const tokens = await this.exchangeCode(code);
     const profile = await this.getProfile(tokens.access_token);
 
@@ -158,18 +164,33 @@ export class ZoomService {
   }
 
   private async getValidToken(integration: any): Promise<string> {
-    if (integration.tokenExpiresAt && integration.tokenExpiresAt < new Date()) {
-      const refreshed = await this.refreshToken(integration.refreshToken!);
+    // Refresh proactively within a skew buffer of expiry, not only after it lapses.
+    const needsRefresh =
+      integration.tokenExpiresAt &&
+      integration.tokenExpiresAt.getTime() - Date.now() < ZoomService.REFRESH_SKEW_MS;
+    if (!needsRefresh) return integration.accessToken!;
+
+    const existing = this.refreshLocks.get(integration.id);
+    if (existing) return existing;
+
+    const p = (async () => {
+      if (!integration.refreshToken) {
+        throw new ConflictException('Zoom token expired — please reconnect');
+      }
+      const refreshed = await this.refreshToken(integration.refreshToken);
       await this.prisma.integrationAccount.update({
         where: { id: integration.id },
         data: {
           accessToken: refreshed.access_token,
+          refreshToken: refreshed.refresh_token ?? undefined, // Zoom rotates refresh tokens
           tokenExpiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
         },
       });
-      return refreshed.access_token;
-    }
-    return integration.accessToken!;
+      return refreshed.access_token as string;
+    })().finally(() => this.refreshLocks.delete(integration.id));
+
+    this.refreshLocks.set(integration.id, p);
+    return p;
   }
 
   private async exchangeCode(code: string) {

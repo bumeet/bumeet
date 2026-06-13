@@ -5,9 +5,10 @@
  * Token refresh is handled automatically on each sync.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { OAuthStateService } from './oauth-state.service';
 
 @Injectable()
 export class MicrosoftCalendarService {
@@ -21,6 +22,7 @@ export class MicrosoftCalendarService {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private oauthState: OAuthStateService,
   ) {}
 
   private get redirectUri() {
@@ -34,14 +36,14 @@ export class MicrosoftCalendarService {
       redirect_uri: this.redirectUri,
       scope: this.SCOPES,
       response_mode: 'query',
-      state: Buffer.from(userId).toString('base64'),
+      state: this.oauthState.issue(userId),
       prompt: 'consent',
     });
     return `${this.AUTH_URL}?${params.toString()}`;
   }
 
   async handleCallback(code: string, state: string) {
-    const userId = Buffer.from(state, 'base64').toString('utf8');
+    const userId = this.oauthState.consume(state);
 
     const tokens = await this.exchangeCode(code);
     const profile = await this.getProfile(tokens.access_token);
@@ -181,7 +183,10 @@ export class MicrosoftCalendarService {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       });
-      if (!res.ok) throw new Error(`Graph API error: ${res.status} ${await res.text()}`);
+      if (!res.ok) {
+        this.logger.debug(`Graph API error: ${res.status} ${await res.text()}`);
+        throw new Error(`Graph API error: ${res.status}`);
+      }
       const data = await res.json();
       allEvents.push(...(data.value || []));
       url = data['@odata.nextLink'] ?? null;
@@ -226,12 +231,27 @@ export class MicrosoftCalendarService {
     const integration = await this.prisma.integrationAccount.findUnique({
       where: { id: integrationId },
     });
-    if (!integration) throw new Error('Integration not found');
+    if (!integration) throw new ConflictException('Integration not found');
 
-    let accessToken = integration.accessToken!;
+    // Demo integrations and ones missing tokens can't query Graph — fail with a
+    // typed error and flag for re-auth instead of interpolating a null token.
+    if (!integration.accessToken) {
+      await this.prisma.integrationAccount
+        .update({
+          where: { id: integrationId },
+          data: { status: 'error', errorMessage: 'No access token — reconnect required' },
+        })
+        .catch(() => undefined);
+      throw new ConflictException('Integration not connected — please reconnect');
+    }
+
+    let accessToken = integration.accessToken;
 
     if (integration.tokenExpiresAt && integration.tokenExpiresAt < new Date()) {
-      const refreshed = await this.refreshToken(integration.refreshToken!);
+      if (!integration.refreshToken) {
+        throw new ConflictException('Integration token expired — please reconnect');
+      }
+      const refreshed = await this.refreshToken(integration.refreshToken);
       accessToken = refreshed.access_token;
       await this.prisma.integrationAccount.update({
         where: { id: integrationId },
@@ -246,7 +266,10 @@ export class MicrosoftCalendarService {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!res.ok) throw new Error(`Graph presence fetch failed: ${await res.text()}`);
+    if (!res.ok) {
+      this.logger.debug(`Graph presence fetch failed: ${res.status} ${await res.text()}`);
+      throw new ConflictException('Could not read Microsoft presence');
+    }
 
     const data = await res.json();
     const busyStates = ['Busy', 'BusyIdle', 'DoNotDisturb', 'InACall', 'InAMeeting'];
@@ -262,7 +285,10 @@ export class MicrosoftCalendarService {
     const res = await fetch(`${this.GRAPH_URL}/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) throw new Error(`Graph profile fetch failed: ${await res.text()}`);
+    if (!res.ok) {
+      this.logger.debug(`Graph profile fetch failed: ${res.status} ${await res.text()}`);
+      throw new Error(`Graph profile fetch failed: ${res.status}`);
+    }
     return res.json();
   }
 }

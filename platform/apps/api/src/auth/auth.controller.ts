@@ -1,4 +1,16 @@
-import { Controller, Post, Get, Body, Req, Query, UseGuards, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Req,
+  Query,
+  UseGuards,
+  Res,
+  Headers,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -25,8 +37,19 @@ export class AuthController {
     private webex: WebexService,
   ) {}
 
+  // Trusted server-to-server endpoint: the web backend (NextAuth) calls this
+  // AFTER it has verified the provider's OAuth, then asserts the verified email.
+  // It must NOT be callable by arbitrary clients (that was an account-takeover
+  // hole), so it requires a shared internal secret.
   @Post('oauth-login')
-  oauthLogin(@Body() dto: { provider: string; email: string; name?: string }) {
+  oauthLogin(
+    @Headers('x-internal-secret') secret: string,
+    @Body() dto: { provider: string; email: string; name?: string },
+  ) {
+    const expected = this.config.get<string>('INTERNAL_AUTH_SECRET');
+    if (!expected || secret !== expected) {
+      throw new UnauthorizedException('oauth-login is a trusted server-to-server endpoint');
+    }
     return this.auth.oauthLogin(dto);
   }
 
@@ -43,7 +66,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   logout(@Req() req: any) {
-    return this.auth.logout(req.user.id);
+    // Delete the exact session, not by user id (which deleted nothing).
+    return this.auth.logout(req.user.sessionId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -172,8 +196,13 @@ export class AuthController {
     }
   }
 
+  // Disabled unless explicitly enabled (never in production). Returns 404 so the
+  // route's existence isn't even disclosed.
   @Get('demo-login')
   async demoLogin() {
+    if (this.config.get('ENABLE_DEMO_LOGIN') !== 'true') {
+      throw new NotFoundException();
+    }
     return this.auth.login({ email: 'demo@bumeet.io', password: 'Demo1234!' });
   }
 }
