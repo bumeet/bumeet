@@ -4,6 +4,14 @@
  * Displays FREE / BUSY status on the M5Stack Core2 LCD screen.
  * Receives text updates over BLE from the BUMEET desktop agent.
  *
+ * Power management (mirrors the CoreInk firmware):
+ *   - CPU 80 MHz activo / 10 MHz en idle (light sleep automático FreeRTOS tickless)
+ *   - Conexión BLE persistente: interval 1000 ms, slave latency 0
+ *   - Loop event-driven: bloquea en ulTaskNotifyTake hasta que llega un mensaje BLE,
+ *     en vez de hacer polling con delay(100) — esto permite el light sleep.
+ *   - Backlight LCD atenuado a los pocos segundos sin cambios (el LED de retro-
+ *     iluminación domina el consumo: ~40-80 mA a brillo máximo).
+ *
  * ─── BLE identifiers (same as CoreInk — agent config unchanged) ──────────────
  *   Device name:         BUMEET
  *   Service UUID:        a1b2c3d4-e5f6-7890-abcd-ef1234567891
@@ -24,6 +32,10 @@
 #include <M5Unified.h>
 #include <NimBLEDevice.h>
 #include <Preferences.h>
+#include <WiFi.h>
+#include <esp_pm.h>
+#include <esp_bt.h>
+#include <esp_task_wdt.h>
 
 // ─── BLE identifiers ──────────────────────────────────────────────────────────
 static const char* SVC_UUID  = "a1b2c3d4-e5f6-7890-abcd-ef1234567891";
@@ -33,18 +45,35 @@ static const char* CHAR_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567892";
 static const uint16_t SCREEN_W = 320;
 static const uint16_t SCREEN_H = 240;
 
-// ─── Power constants ──────────────────────────────────────────────────────────
-static const uint8_t  CPU_FREQ_MHZ     = 80;
-static const int8_t   BLE_TX_POWER     = ESP_PWR_LVL_N12;  // -12 dBm
-static const uint16_t ADV_INTERVAL_MIN = 2048;              // × 0.625 ms = 1280 ms
-static const uint16_t ADV_INTERVAL_MAX = 2056;
-static const uint16_t LOOP_DELAY_MS    = 100;
+// ─── Power / BLE constants ────────────────────────────────────────────────────
+static const uint8_t  CPU_FREQ_MHZ        = 80;
+static const int8_t   BLE_TX_POWER        = ESP_PWR_LVL_N12;  // -12 dBm
+static const uint16_t CONN_INTERVAL       = 800;   // × 1.25 ms = 1000 ms
+static const uint16_t SLAVE_LATENCY       = 0;
+static const uint16_t SUPERVISION_TIMEOUT = 400;   // × 10 ms  = 4000 ms
+static const uint16_t ADV_INTERVAL        = 2048;  // × 0.625 ms = 1280 ms
+
+// Brillo del backlight: alto al mostrar un cambio, atenuado en reposo.
+static const uint8_t  BACKLIGHT_ACTIVE    = 80;    // de 255
+static const uint8_t  BACKLIGHT_DIM       = 16;    // legible pero de bajo consumo
+static const uint32_t BACKLIGHT_DIM_MS    = 15UL * 1000UL;   // atenuar a los 15 s
+// Limpiar a FREE tras una desconexión prolongada (estado ya no fiable).
+static const uint32_t AUTO_FREE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
+// Máximo bloqueo del loop (mantiene capacidad de respuesta del watchdog opcional).
+static const uint32_t TASK_TIMEOUT_MS      = 60000;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static Preferences   gPrefs;
-static String        gCurrentMsg;
-static String        gPendingMsg;
-static volatile bool gNeedsRedraw = false;
+static String        gCurrentMsg;        // último estado mostrado (solo loop)
+static String        gPendingMsg;        // recibido por BLE, pendiente de render
+static String        gLastPersistedMsg;  // último valor escrito en NVS
+static volatile bool gNeedsRedraw    = false;
+static volatile bool gConnected      = false;
+static unsigned long gDisconnectedMs = 0;
+static unsigned long gLastRenderMs   = 0;
+static bool          gBacklightDimmed = false;
+static TaskHandle_t  gMainTask       = nullptr;
+static portMUX_TYPE  gMsgMux         = portMUX_INITIALIZER_UNLOCKED;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,72 +156,188 @@ static void renderMessage(const String& msg) {
     } else {
         renderFree();
     }
+    // Subir el brillo al refrescar para que el cambio sea visible.
+    M5.Display.setBrightness(BACKLIGHT_ACTIVE);
+    gBacklightDimmed = false;
+    gLastRenderMs    = millis();
 }
 
-// ─── BLE callback ─────────────────────────────────────────────────────────────
-class WriteCallback : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic* pC, NimBLEConnInfo& connInfo) override {
-        std::string val = std::string(pC->getValue());
-        if (val.empty()) return;
-
-        String incoming(val.c_str());
-        incoming.trim();
-
-        if (incoming == gCurrentMsg) return;
-
-        gPendingMsg  = incoming;
-        gNeedsRedraw = true;
-
-        gPrefs.begin("bumeet", false);
-        gPrefs.putString("msg", incoming);
-        gPrefs.end();
+// ─── BLE callbacks (static — sin asignación de heap) ──────────────────────────
+class ServerCallbacks : public NimBLEServerCallbacks {
+    void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
+        gConnected = true;
+        // Negociar 1 s de intervalo para minimizar despertares de radio/CPU.
+        pServer->updateConnParams(
+            connInfo.getConnHandle(),
+            CONN_INTERVAL, CONN_INTERVAL,
+            SLAVE_LATENCY,
+            SUPERVISION_TIMEOUT
+        );
+    }
+    void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
+        gConnected      = false;
+        gDisconnectedMs = millis();
+        NimBLEDevice::getAdvertising()->start();
+        if (gMainTask) xTaskNotifyGive(gMainTask);  // recalcular timeout auto-FREE
     }
 };
 
-// ─── Setup ────────────────────────────────────────────────────────────────────
-void setup() {
-    setCpuFrequencyMhz(CPU_FREQ_MHZ);
+class WriteCallback : public NimBLECharacteristicCallbacks {
+    void onWrite(NimBLECharacteristic* pC, NimBLEConnInfo&) override {
+        std::string val = std::string(pC->getValue());
+        if (val.size() == 0 || val.size() > 64) return;  // validar tamaño
 
-    auto cfg = M5.config();
-    M5.begin(cfg);
+        // Constructor con longitud explícita → binario-seguro (no trunca en NUL).
+        String incoming(val.c_str(), val.size());
+        incoming.trim();
 
-    M5.Display.setRotation(1);  // landscape
+        // No comparamos contra gCurrentMsg aquí (lo lee/escribe el loop en otro
+        // task → data race). El loop deduplica de forma single-threaded.
+        portENTER_CRITICAL(&gMsgMux);
+        gPendingMsg  = incoming;
+        gNeedsRedraw = true;
+        portEXIT_CRITICAL(&gMsgMux);
 
-    // Restore and show last saved message
-    gPrefs.begin("bumeet", true);
-    gCurrentMsg = gPrefs.getString("msg", "FREE");
-    gPrefs.end();
-    renderMessage(gCurrentMsg);
+        if (gMainTask) xTaskNotifyGive(gMainTask);
+    }
+};
 
-    // ── NimBLE GATT server ────────────────────────────────────────────────────
+static ServerCallbacks gServerCb;
+static WriteCallback   gWriteCb;
+
+// ─── Init helpers ─────────────────────────────────────────────────────────────
+static void initPower() {
+    WiFi.mode(WIFI_OFF);
+    esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+
+    // Light sleep automático: CPU baja a 10 MHz entre eventos BLE.
+    esp_pm_config_esp32_t pmCfg = {
+        .max_freq_mhz       = CPU_FREQ_MHZ,
+        .min_freq_mhz       = 10,
+        .light_sleep_enable = true,
+    };
+    esp_pm_configure(&pmCfg);
+}
+
+static void initBLE() {
     NimBLEDevice::init("BUMEET");
     NimBLEDevice::setPower(BLE_TX_POWER);
 
-    NimBLEServer*  pSrv  = NimBLEDevice::createServer();
-    NimBLEService* pSvc  = pSrv->createService(SVC_UUID);
+    NimBLEServer* pSrv = NimBLEDevice::createServer();
+    pSrv->setCallbacks(&gServerCb);
 
+    NimBLEService*        pSvc  = pSrv->createService(SVC_UUID);
     NimBLECharacteristic* pChar = pSvc->createCharacteristic(
         CHAR_UUID,
         NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
     );
-    pChar->setCallbacks(new WriteCallback());
+    pChar->setCallbacks(&gWriteCb);
     pSvc->start();
 
     NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
     pAdv->addServiceUUID(SVC_UUID);
-    pAdv->setMinInterval(ADV_INTERVAL_MIN);
-    pAdv->setMaxInterval(ADV_INTERVAL_MAX);
+    pAdv->setName("BUMEET");
+    pAdv->setMinInterval(ADV_INTERVAL);
+    pAdv->setMaxInterval(ADV_INTERVAL);
     pAdv->start();
+}
+
+// ─── Setup ────────────────────────────────────────────────────────────────────
+void setup() {
+    setCpuFrequencyMhz(CPU_FREQ_MHZ);
+    initPower();  // WiFi off + BT Classic off + light sleep — primero por los clocks
+
+    auto cfg = M5.config();
+    M5.begin(cfg);
+
+    // Si el WDT del loop está activo en este build, no queremos que un bloqueo
+    // largo en light sleep lo dispare. Desuscribir esta tarea es idempotente.
+    esp_task_wdt_delete(NULL);
+
+    M5.Display.setRotation(1);  // landscape
+
+    // Restaurar último estado (partición NVS abierta una sola vez).
+    gPrefs.begin("bumeet", false);
+    String restored   = gPrefs.getString("msg", "FREE");
+    gLastPersistedMsg = restored;
+    renderMessage(restored);
+    gCurrentMsg = restored;
+
+    gMainTask = xTaskGetCurrentTaskHandle();
+    initBLE();
 }
 
 // ─── Loop ─────────────────────────────────────────────────────────────────────
 void loop() {
-    M5.update();  // procesa botones/touch del Core2
+    // Calcular el tiempo de espera hasta el próximo evento temporizado:
+    //  - redraw pendiente            → no esperar
+    //  - backlight aún sin atenuar   → despertar para atenuar
+    //  - desconectado mostrando BUSY → despertar para limpiar a FREE
+    //  - en reposo                   → bloquear hasta notificación (1 min máx)
+    TickType_t waitTicks;
+    {
+        bool pending;
+        portENTER_CRITICAL(&gMsgMux);
+        pending = gNeedsRedraw;
+        portEXIT_CRITICAL(&gMsgMux);
 
-    if (gNeedsRedraw) {
-        gNeedsRedraw = false;
-        gCurrentMsg  = gPendingMsg;
-        renderMessage(gCurrentMsg);
+        if (pending) {
+            waitTicks = 0;
+        } else if (!gBacklightDimmed) {
+            unsigned long elapsed = millis() - gLastRenderMs;
+            uint32_t remaining = (elapsed < BACKLIGHT_DIM_MS)
+                                    ? (BACKLIGHT_DIM_MS - (uint32_t)elapsed + 10) : 0;
+            waitTicks = pdMS_TO_TICKS(remaining);
+        } else if (!gConnected && gCurrentMsg != "FREE") {
+            unsigned long sinceDisc = millis() - gDisconnectedMs;
+            uint32_t remaining = (sinceDisc < AUTO_FREE_TIMEOUT_MS)
+                                    ? (AUTO_FREE_TIMEOUT_MS - (uint32_t)sinceDisc + 10) : 0;
+            waitTicks = pdMS_TO_TICKS(remaining);
+        } else {
+            waitTicks = pdMS_TO_TICKS(TASK_TIMEOUT_MS);
+        }
     }
-    delay(LOOP_DELAY_MS);
+
+    if (waitTicks > 0) ulTaskNotifyTake(pdTRUE, waitTicks);
+
+    M5.update();
+
+    // ── Render del mensaje recibido ───────────────────────────────────────────
+    String toRender;
+    bool   needsRedraw = false;
+    portENTER_CRITICAL(&gMsgMux);
+    if (gNeedsRedraw) {
+        toRender     = gPendingMsg;
+        gNeedsRedraw = false;
+        needsRedraw  = true;
+    }
+    portEXIT_CRITICAL(&gMsgMux);
+
+    if (needsRedraw && toRender != gCurrentMsg) {
+        renderMessage(toRender);   // sube brillo + resetea timers de backlight
+        gCurrentMsg = toRender;
+        if (toRender != gLastPersistedMsg) {
+            gPrefs.putString("msg", toRender);  // persistir fuera del callback BLE
+            gLastPersistedMsg = toRender;
+        }
+    }
+
+    // ── Atenuar backlight tras inactividad ────────────────────────────────────
+    if (!gBacklightDimmed && millis() - gLastRenderMs >= BACKLIGHT_DIM_MS) {
+        M5.Display.setBrightness(BACKLIGHT_DIM);
+        gBacklightDimmed = true;
+    }
+
+    // ── Auto-FREE tras desconexión prolongada ─────────────────────────────────
+    // Encolar una vez (gPendingMsg != "FREE" evita re-disparos en bucle); el
+    // propio loop la renderiza en la siguiente iteración (waitTicks = 0).
+    if (!gConnected && gCurrentMsg != "FREE"
+        && millis() - gDisconnectedMs >= AUTO_FREE_TIMEOUT_MS) {
+        portENTER_CRITICAL(&gMsgMux);
+        if (gPendingMsg != "FREE") {
+            gPendingMsg  = "FREE";
+            gNeedsRedraw = true;
+        }
+        portEXIT_CRITICAL(&gMsgMux);
+    }
 }
