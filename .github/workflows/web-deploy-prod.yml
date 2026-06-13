@@ -23,6 +23,9 @@ jobs:
   deploy:
     name: "Build & Deploy to production"
     runs-on: ubuntu-latest
+    # Gate prod deploys behind the protected GitHub `prod` environment (manual
+    # approval) instead of shipping on every push to main.
+    environment: prod
 
     steps:
       - uses: actions/checkout@v4

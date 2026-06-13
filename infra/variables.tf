@@ -77,6 +77,18 @@ variable "pg_db_name" {
   default     = "bumeet"
 }
 
+variable "pg_backup_retention_days" {
+  description = "PostgreSQL backup retention in days (7 dev, up to 35 prod)."
+  type        = number
+  default     = 7
+}
+
+variable "pg_geo_redundant_backup_enabled" {
+  description = "Geo-redundant backups. Set at creation only — see module note."
+  type        = bool
+  default     = false
+}
+
 # ── Redis ─────────────────────────────────────────────────────────────────────
 
 variable "redis_sku_name" {
@@ -111,6 +123,14 @@ variable "acr_sku" {
   description = "Container Registry SKU. Basic for dev, Standard for prod."
   type        = string
   default     = "Basic"
+}
+
+# ── Observability ─────────────────────────────────────────────────────────────
+
+variable "alert_email" {
+  description = "Email address that receives Azure Monitor alerts."
+  type        = string
+  default     = "rodes32@gmail.com"
 }
 
 # ── Tags ──────────────────────────────────────────────────────────────────────

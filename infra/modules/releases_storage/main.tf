@@ -24,7 +24,8 @@ resource "azurerm_storage_account" "this" {
 }
 
 resource "azurerm_storage_container" "releases" {
-  name                  = "releases"
-  storage_account_id    = azurerm_storage_account.this.id
+  name = "releases"
+  # azurerm ~> 3.x uses storage_account_name (storage_account_id is the 4.x form).
+  storage_account_name  = azurerm_storage_account.this.name
   container_access_type = "blob" # anonymous read for blobs; list still requires auth
 }

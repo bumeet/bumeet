@@ -6,15 +6,17 @@ resource "azurerm_key_vault" "this" {
   sku_name                   = "standard"
   soft_delete_retention_days = var.soft_delete_retention_days
 
-  # Set to true in prod after initial stable apply. Cannot be disabled once enabled.
-  purge_protection_enabled = false
+  # Enabled in prod (driven by var). Cannot be disabled once enabled — that's the
+  # point: it prevents permanent deletion of secrets even by an attacker with KV access.
+  purge_protection_enabled = var.purge_protection_enabled
 
-  # Access policy for the Terraform service principal (CI)
+  # Access policy for the Terraform service principal (CI). No "Purge" — CI must
+  # not be able to permanently destroy soft-deleted secrets.
   access_policy {
     tenant_id = var.tenant_id
     object_id = var.object_id
 
-    secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
+    secret_permissions = ["Get", "List", "Set", "Delete", "Recover"]
   }
 
   tags = var.tags

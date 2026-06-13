@@ -1,0 +1,52 @@
+name: "Terraform Drift Detection"
+
+# Nightly read-only `terraform plan -detailed-exitcode` per environment.
+# Exit code 2 means real drift between the live infrastructure and the committed
+# Terraform — the job fails so the team is notified.
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.8.5"
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  drift:
+    name: "Plan (drift) — ${{ matrix.env }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    environment: ${{ matrix.env }}
+    defaults:
+      run:
+        working-directory: infra/envs/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -lock-timeout=5m
+
+      - name: Terraform Plan (detailed exit code)
+        run: |
+          terraform plan \
+            -lock-timeout=5m \
+            -detailed-exitcode \
+            -var="pg_admin_password=${{ matrix.env == 'prod' && secrets.PG_ADMIN_PASSWORD_PROD || secrets.PG_ADMIN_PASSWORD_DEV }}"

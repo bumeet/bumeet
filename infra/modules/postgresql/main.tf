@@ -7,9 +7,13 @@ resource "azurerm_postgresql_flexible_server" "this" {
   administrator_password = var.admin_password
   sku_name               = var.sku_name
   storage_mb             = var.storage_mb
+  auto_grow_enabled      = var.auto_grow_enabled
 
-  geo_redundant_backup_enabled = false
-  backup_retention_days        = 7
+  # NOTE: geo_redundant_backup_enabled is set at creation; toggling it on an
+  # existing server forces a replacement. Enable it on a fresh prod server or via
+  # a planned migration — do not flip it in place on the live DB.
+  geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
+  backup_retention_days        = var.backup_retention_days
 
   tags = var.tags
 
