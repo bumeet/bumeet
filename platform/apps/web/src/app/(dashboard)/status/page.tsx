@@ -15,19 +15,23 @@ export default function StatusPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   const token = (session as any)?.apiToken;
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
+    setLoading(true);
+    setError(false);
     Promise.all([
       api.get<Integration[]>('/integrations', token),
       api.get<Message[]>('/messages', token),
     ]).then(([integ, msgs]) => {
       setIntegrations(integ);
       setMessages(msgs);
-    }).finally(() => setLoading(false));
-  }, [token]);
+    }).catch(() => setError(true)).finally(() => setLoading(false));
+  }, [token, reload]);
 
   const connected = integrations.filter((i) => i.status === 'active');
   const totalEvents = integrations.reduce((s, i) => s + i.eventsImported, 0);
@@ -35,6 +39,20 @@ export default function StatusPage() {
   const lastMessage = messages[0];
 
   if (loading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (error) return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
+        <p className="text-sm text-red-600">Couldn&apos;t load your status. Please try again.</p>
+        <button
+          onClick={() => setReload((n) => n + 1)}
+          className="mt-3 px-4 py-2 text-sm rounded-lg bg-brand-500 text-white hover:bg-brand-600"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-8 max-w-4xl mx-auto">

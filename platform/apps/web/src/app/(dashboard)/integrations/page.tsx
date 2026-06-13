@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -34,7 +34,7 @@ const PROVIDERS = [
 
 const MAX_ACCOUNTS = 5;
 
-export default function IntegrationsPage() {
+function IntegrationsInner() {
   const { data: session } = useSession();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +60,7 @@ export default function IntegrationsPage() {
     const error = searchParams.get('error');
     if (connected) { setConnectedProvider(connected); setBanner('connected'); router.replace('/integrations'); }
     if (error) { setBanner('error'); router.replace('/integrations'); }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
@@ -99,14 +99,25 @@ export default function IntegrationsPage() {
     } catch {}
   }, [token]);
 
-  // Poll Slack presence every 20s for all connected Slack accounts
+  // Poll Slack presence every 20s for all connected Slack accounts. Skip while the
+  // tab is hidden (don't drain battery/radio on a backgrounded dashboard) and
+  // refetch immediately when it becomes visible again.
   useEffect(() => {
     const slackAccounts = integrations.filter((i) => i.provider === 'slack' && i.status === 'active');
     if (!slackAccounts.length) return;
 
-    slackAccounts.forEach((a) => pollSlackPresence(a.id));
-    const interval = setInterval(() => slackAccounts.forEach((a) => pollSlackPresence(a.id)), 1_000);
-    return () => clearInterval(interval);
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return;
+      slackAccounts.forEach((a) => pollSlackPresence(a.id));
+    };
+    poll();
+    const interval = setInterval(poll, 20_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [integrations, pollSlackPresence]);
 
   // Poll Teams presence every 30s
@@ -359,5 +370,15 @@ export default function IntegrationsPage() {
         })}
       </div>
     </div>
+  );
+}
+
+// useSearchParams() must be inside a Suspense boundary (Next 14) or it de-opts the
+// whole route to client-side rendering / fails the prerender.
+export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <IntegrationsInner />
+    </Suspense>
   );
 }

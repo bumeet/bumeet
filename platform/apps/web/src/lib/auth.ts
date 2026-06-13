@@ -11,7 +11,12 @@ async function getApiToken(provider: string, email: string, name?: string) {
   try {
     const res = await fetch(`${apiUrl}/auth/oauth-login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // Authenticates this trusted server-to-server call. NextAuth's jwt callback
+        // runs server-side, so the secret is never exposed to the browser.
+        'x-internal-secret': process.env.INTERNAL_AUTH_SECRET ?? '',
+      },
       body: JSON.stringify({ provider, email, name }),
     });
     if (!res.ok) {
@@ -92,6 +97,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   pages: { signIn: '/login' },
-  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret',
+  // No fallback secret: NextAuth fails loudly in production if neither is set,
+  // instead of silently signing sessions with a publicly-known value.
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   trustHost: true,
 });

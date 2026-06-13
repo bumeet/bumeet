@@ -23,3 +23,16 @@
 .input {
   @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
 }
+
+/* Respect users who request reduced motion: disable the perpetual pulse/spin
+   animations (e.g. the "in call" badges) and near-instant transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -24,11 +24,15 @@ export default function AccountPage() {
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   const [pwError, setPwError] = useState('');
   const [pwSaved, setPwSaved] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!token) return;
-    api.get<UserProfile>('/users/me', token).then(setProfile);
-    api.get<Session[]>('/users/me/sessions', token).then(setSessions);
+    setLoadError(false);
+    // Catch failures so a dropped request doesn't leave the page stuck on the
+    // spinner forever (profile null).
+    api.get<UserProfile>('/users/me', token).then(setProfile).catch(() => setLoadError(true));
+    api.get<Session[]>('/users/me/sessions', token).then(setSessions).catch(() => {});
   }, [token]);
 
   const handleSaveProfile = async () => {
@@ -71,7 +75,16 @@ export default function AccountPage() {
     signOut({ callbackUrl: '/login' });
   };
 
-  if (!profile) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!profile) {
+    if (loadError) return (
+      <div className="p-8 max-w-2xl mx-auto">
+        <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
+          <p className="text-sm text-red-600">Couldn&apos;t load your account. Please refresh the page.</p>
+        </div>
+      </div>
+    );
+    return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+  }
 
   return (
     <div className="p-8 max-w-2xl mx-auto space-y-6">
