@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import secrets
 import signal
 import sys
@@ -81,35 +82,36 @@ async def _pair_with_portal(api: ApiSettings, settings_store: SettingsStore) -> 
     register_url = f"{api.url}/agent/pair/register"
     status_url = f"{api.url}/agent/pair/status"
 
-    try:
-        async with aiohttp.ClientSession() as session, session.post(
-            register_url,
-            json={"code": code},
-            timeout=aiohttp.ClientTimeout(total=5),
-        ) as resp:
-            if resp.status not in (200, 201):
-                logger.warning("Could not register pairing code (HTTP %s)", resp.status)
-                return False
-    except Exception as exc:
-        logger.warning("Could not reach API to register pairing code: %s", exc)
-        return False
-
-    # Open browser — portal will auto-approve if the user is logged in
-    portal_url = f"https://bumeet.es/device?pair={code}"
-    webbrowser.open(portal_url)
-
-    print("\n" + "=" * 50)
-    print("  BUMEET — linking to your account…")
-    print("=" * 50)
-    print("\n  A browser window has opened. Log in if needed.")
-    print("  The agent will link automatically once you're logged in.")
-    print(f"\n  Manual fallback code: {code}")
-    print("\n  Waiting… (expires in 5 min)")
-    print("=" * 50 + "\n")
-
-    deadline = asyncio.get_event_loop().time() + _PAIR_TTL
+    # Single shared session for both the register call and the status poll.
     async with aiohttp.ClientSession() as session:
-        while asyncio.get_event_loop().time() < deadline:
+        try:
+            async with session.post(
+                register_url,
+                json={"code": code},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status not in (200, 201):
+                    logger.warning("Could not register pairing code (HTTP %s)", resp.status)
+                    return False
+        except Exception as exc:
+            logger.warning("Could not reach API to register pairing code: %s", exc)
+            return False
+
+        # Open browser — portal will auto-approve if the user is logged in
+        portal_url = f"https://bumeet.es/device?pair={code}"
+        webbrowser.open(portal_url)
+
+        print("\n" + "=" * 50)
+        print("  BUMEET — linking to your account…")
+        print("=" * 50)
+        print("\n  A browser window has opened. Log in if needed.")
+        print("  The agent will link automatically once you're logged in.")
+        print(f"\n  Manual fallback code: {code}")
+        print("\n  Waiting… (expires in 5 min)")
+        print("=" * 50 + "\n")
+
+        deadline = asyncio.get_running_loop().time() + _PAIR_TTL
+        while asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(5)
             try:
                 async with session.get(
@@ -150,7 +152,8 @@ async def run(
     if simulate:
 
         async def log_event(event: AgentEvent) -> None:
-            logger.info("event=%s payload=%s", event.topic, event.payload)
+            # Payloads can contain meeting details (PII) — keep them at DEBUG.
+            logger.debug("event=%s payload=%s", event.topic, event.payload)
 
         result = await run_simulation_session(
             config_path=config_path,
@@ -182,7 +185,8 @@ async def run(
     container = build_container(config_path, settings_override=settings)
 
     async def _log_container_event(event: AgentEvent) -> None:
-        logger.info("event=%s payload=%s", event.topic, event.payload)
+        # Payloads can carry meeting details (PII) and live-status — DEBUG only.
+        logger.debug("event=%s payload=%s", event.topic, event.payload)
 
     await container.event_bus.subscribe("*", _log_container_event)
     await container.event_bus.emit(
@@ -216,11 +220,20 @@ async def run(
         loop.add_signal_handler(signal.SIGINT, _request_stop)
         loop.add_signal_handler(signal.SIGTERM, _request_stop)
     except (NotImplementedError, RuntimeError):
-        pass  # Windows does not support loop.add_signal_handler
+        # Windows: loop.add_signal_handler is unsupported. Fall back to
+        # signal.signal (fires on the main thread) and bounce into the loop.
+        def _signal_stop(*_: Any) -> None:
+            _request_stop()
+
+        for _sig in (signal.SIGINT, getattr(signal, "SIGBREAK", signal.SIGTERM)):
+            with contextlib.suppress(ValueError, OSError):
+                signal.signal(_sig, _signal_stop)
 
     detection_task = asyncio.create_task(detector.start(orchestrator.handle_snapshot))
     try:
-        await stop_event.wait()
+        # Ctrl-C / Ctrl-Break: swallow so the finally cleanup below still runs.
+        with contextlib.suppress(KeyboardInterrupt, asyncio.CancelledError):
+            await stop_event.wait()
     finally:
         await detector.stop()
         try:

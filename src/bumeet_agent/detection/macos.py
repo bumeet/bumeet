@@ -7,6 +7,7 @@ import ctypes
 import ctypes.util
 import struct
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 from bumeet_agent.detection.base import DetectionCallback, HardwareDetector
 from bumeet_agent.domain.status import HardwareSnapshot
@@ -162,20 +163,28 @@ def _poll_camera() -> bool:
     Fallback: IOVideoDeviceStream entries are created by the CMIO layer when a
     capture session starts (covers USB cameras and Intel Macs).
     """
-    # Apple Silicon built-in camera
+    # Apple Silicon built-in camera — authoritative when the class is present.
+    primary_conclusive = False
     try:
         result = subprocess.run(
             ["ioreg", "-r", "-c", "AppleH13CamIn", "-d", "2"],
             capture_output=True,
             text=True,
-            timeout=3,
+            timeout=2,
         )
         if result.returncode == 0 and result.stdout:
+            primary_conclusive = True
             stdout = result.stdout
             if '"FrontCameraActive" = Yes' in stdout or '"FrontCameraStreaming" = Yes' in stdout:
                 return True
     except Exception as exc:
         logger.debug("AppleH13CamIn camera check failed: %s", exc)
+
+    # If the Apple Silicon class answered, trust it: the CMIO fallback below keys
+    # on mere *existence* of a stream entry and false-positives, so only use it
+    # when the primary class is absent (USB cameras / Intel Macs).
+    if primary_conclusive:
+        return False
 
     # CMIO fallback (USB cameras / Intel Macs)
     try:
@@ -183,7 +192,7 @@ def _poll_camera() -> bool:
             ["ioreg", "-r", "-c", "IOVideoDeviceStream", "-d", "1"],
             capture_output=True,
             text=True,
-            timeout=3,
+            timeout=2,
         )
         if result.returncode == 0 and result.stdout.strip():
             return True
@@ -203,15 +212,35 @@ class MacOSHardwareDetector(HardwareDetector):
     def __init__(self, poll_interval: float = 2.0) -> None:
         self._poll_interval = poll_interval
         self._stop_event: asyncio.Event | None = None
+        # Dedicated single-thread executor so detection isn't starved by BLE/API
+        # work competing for the default thread pool.
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="macos-detect")
+        # Camera join/leave is not latency-critical; poll it far less often than
+        # the mic to cut ioreg subprocess spawns (~7.5x fewer at 15 s vs 2 s).
+        self._camera_interval = 15.0
+        self._last_camera = False
+        self._last_camera_check = 0.0
 
     async def start(self, callback: DetectionCallback) -> None:
         self._stop_event = asyncio.Event()
         loop = asyncio.get_running_loop()
         while not self._stop_event.is_set():
-            snapshot = await loop.run_in_executor(None, _take_snapshot)
-            result = callback(snapshot)
-            if asyncio.iscoroutine(result):
-                await result
+            try:
+                now = loop.time()
+                poll_camera = (now - self._last_camera_check) >= self._camera_interval
+                snapshot = await loop.run_in_executor(
+                    self._executor, _take_snapshot, poll_camera, self._last_camera
+                )
+                if poll_camera:
+                    self._last_camera = snapshot.camera_in_use
+                    self._last_camera_check = now
+                result = callback(snapshot)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                # One bad iteration (ioreg hiccup, callback error) must not kill
+                # the detector — log and keep polling.
+                logger.exception("macOS detection iteration failed; continuing")
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=self._poll_interval)
                 break  # stop was requested; exit cleanly
@@ -221,11 +250,12 @@ class MacOSHardwareDetector(HardwareDetector):
     async def stop(self) -> None:
         if self._stop_event is not None:
             self._stop_event.set()
+        self._executor.shutdown(wait=False)
 
 
-def _take_snapshot() -> HardwareSnapshot:
+def _take_snapshot(poll_camera: bool = True, last_camera: bool = False) -> HardwareSnapshot:
     return HardwareSnapshot(
-        camera_in_use=_poll_camera(),
+        camera_in_use=_poll_camera() if poll_camera else last_camera,
         microphone_in_use=_poll_microphone(),
         source="macos:poll",
     )

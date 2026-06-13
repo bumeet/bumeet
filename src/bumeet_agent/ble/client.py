@@ -50,6 +50,9 @@ class BleClient:
         self._keep_connected = False
         self._connection_task: asyncio.Task[None] | None = None
         self._connected_event = asyncio.Event()
+        # Set to wake the connection loop early (e.g. on a disconnect) instead of
+        # busy-polling once per second.
+        self._wake = asyncio.Event()
         self._last_payload: bytes = b"FREE"
         # Monotonic time of the last successful GATT write (keepalive or real).
         # Shared across both paths so keepalive backs off after a real write.
@@ -75,9 +78,15 @@ class BleClient:
         await self.disconnect()
 
     async def _connection_loop(self) -> None:
-        """Reconnect on drops; send keepalive every 20 s to beat macOS idle timeout."""
+        """Reconnect on drops; send keepalive every 20 s to beat macOS idle timeout.
+
+        Event-driven: sleeps until the next keepalive is due (≈20 s when idle)
+        and wakes early via ``_wake`` on a disconnect, instead of polling at 1 Hz.
+        """
+        loop = asyncio.get_running_loop()
         while self._keep_connected:
-            now = asyncio.get_event_loop().time()
+            now = loop.time()
+            sleep_for = _KEEPALIVE_INTERVAL_S
 
             if not self.is_connected:
                 self._connected_event.clear()
@@ -85,38 +94,54 @@ class BleClient:
                     await self.connect()
                     # Re-send current state immediately after reconnect so the
                     # e-ink display is always in sync even after a firmware reboot.
+                    # Acknowledged write so the resync is reliable.
                     assert self._client is not None
                     await self._client.write_gatt_char(
                         self._settings.characteristic_uuid,
                         self._last_payload,
-                        response=False,
+                        response=self._settings.write_with_response,
                     )
-                    self._last_write_time = asyncio.get_event_loop().time()
+                    self._last_write_time = loop.time()
                     self._connected_event.set()
                     logger.debug("BLE reconnect sync sent")
                 except Exception as exc:
                     logger.debug("Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S)
-                    await asyncio.sleep(_RECONNECT_INTERVAL_S)
+                    await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                     continue
+            else:
+                elapsed = now - self._last_write_time
+                if elapsed >= _KEEPALIVE_INTERVAL_S:
+                    # Re-write last payload only if no real write happened recently.
+                    # Firmware deduplicates identical payloads — fire-and-forget is
+                    # intentional here (a missed keepalive just reconnects).
+                    try:
+                        assert self._client is not None
+                        await self._client.write_gatt_char(
+                            self._settings.characteristic_uuid,
+                            self._last_payload,
+                            response=False,
+                        )
+                        self._last_write_time = loop.time()
+                        logger.debug("BLE keepalive sent")
+                    except Exception as exc:
+                        logger.debug("Keepalive failed: %s — reconnect in %.0fs",
+                                     exc, _RECONNECT_INTERVAL_S)
+                        await self.disconnect()
+                        await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
+                        continue
+                else:
+                    sleep_for = _KEEPALIVE_INTERVAL_S - elapsed
 
-            elif now - self._last_write_time >= _KEEPALIVE_INTERVAL_S:
-                # Re-write last payload only if no real write happened recently.
-                # Firmware deduplicates identical payloads — no display refresh.
-                try:
-                    assert self._client is not None
-                    await self._client.write_gatt_char(
-                        self._settings.characteristic_uuid,
-                        self._last_payload,
-                        response=False,
-                    )
-                    self._last_write_time = asyncio.get_event_loop().time()
-                    logger.debug("BLE keepalive sent")
-                except Exception as exc:
-                    logger.debug("Keepalive failed: %s — will reconnect", exc)
-                    await self.disconnect()
-                    continue
+            await self._sleep_or_wake(sleep_for)
 
-            await asyncio.sleep(1)
+    async def _sleep_or_wake(self, delay: float) -> None:
+        """Sleep up to ``delay`` seconds, returning early if ``_wake`` is set."""
+        try:
+            await asyncio.wait_for(self._wake.wait(), timeout=max(0.0, delay))
+        except TimeoutError:
+            pass
+        finally:
+            self._wake.clear()
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -129,17 +154,17 @@ class BleClient:
         if not self._settings.is_configured:
             return
 
-        self._last_payload = payload
-
         try:
             await asyncio.wait_for(self._connected_event.wait(), timeout=_WRITE_WAIT_S)
         except TimeoutError:
             logger.warning("BLE write skipped — device not reachable within %.0fs", _WRITE_WAIT_S)
+            await self._emit_write_failure(payload, "device not reachable")
             return
 
         for attempt in range(2):
             try:
                 await self.send_payload(payload)
+                self._last_payload = payload  # authoritative only after a successful write
                 return
             except Exception as exc:
                 logger.debug("Write attempt %d failed: %s", attempt + 1, exc)
@@ -154,6 +179,20 @@ class BleClient:
                         break
 
         logger.warning("BLE write failed after retries")
+        await self._emit_write_failure(payload, "write failed after retries")
+
+    async def _emit_write_failure(self, payload: bytes, reason: str) -> None:
+        """Notify upstream that a push failed so it can react (not wait for heartbeat)."""
+        await self._event_bus.emit(
+            EventTopic.BLE_ERROR.value,
+            address=self._settings.device_address,
+            error=reason,
+            payload_hex=payload.hex(),
+        )
+
+    async def resend_last(self) -> None:
+        """Re-send the last successfully written payload (used by the heartbeat)."""
+        await self.write_now(self._last_payload)
 
     # ── Low-level connection management ──────────────────────────────────────
 
@@ -195,6 +234,7 @@ class BleClient:
             finally:
                 self._client = None
                 self._connected_event.clear()
+                self._wake.set()  # wake the connection loop to reconnect promptly
                 await self._event_bus.emit(
                     EventTopic.BLE_DISCONNECTED.value,
                     address=self._settings.device_address,
@@ -214,7 +254,7 @@ class BleClient:
                 payload,
                 response=self._settings.write_with_response,
             )
-            self._last_write_time = asyncio.get_event_loop().time()
+            self._last_write_time = asyncio.get_running_loop().time()
         except Exception as exc:
             await self._event_bus.emit(
                 EventTopic.BLE_ERROR.value,

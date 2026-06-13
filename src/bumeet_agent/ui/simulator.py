@@ -217,9 +217,18 @@ class SimulationViewer:
         self._append_log(f"{event.topic}: {event.payload}")
 
     def _append_log(self, line: str) -> None:
-        current = self._log_widget.get("1.0", tk.END).strip()
-        next_content = f"{current}\n{line}".strip() if current else line
-        self._set_log_contents(next_content)
+        # Append only the new line (O(1)) instead of rebuilding the whole buffer
+        # each event (O(n²) over a session). Cap retained lines to bound memory.
+        max_lines = 200
+        self._log_widget.configure(state="normal")
+        if self._log_widget.index("end-1c") != "1.0":
+            self._log_widget.insert(tk.END, "\n")
+        self._log_widget.insert(tk.END, line)
+        line_count = int(self._log_widget.index("end-1c").split(".")[0])
+        if line_count > max_lines:
+            self._log_widget.delete("1.0", f"{line_count - max_lines + 1}.0")
+        self._log_widget.see(tk.END)
+        self._log_widget.configure(state="disabled")
 
     def _set_log_contents(self, text: str) -> None:
         self._log_widget.configure(state="normal")
