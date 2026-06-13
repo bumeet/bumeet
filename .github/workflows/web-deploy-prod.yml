@@ -45,6 +45,8 @@ jobs:
           NEXTAUTH_SECRET:                  ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_SECRET:                      ${{ secrets.NEXTAUTH_SECRET }}
           AUTH_URL:                         https://bumeet.es
+          # Shared server-to-server secret for the API's oauth-login endpoint.
+          INTERNAL_AUTH_SECRET:             ${{ secrets.INTERNAL_AUTH_SECRET }}
           AUTH_GOOGLE_ID:                   ${{ secrets.GOOGLE_CLIENT_ID }}
           AUTH_GOOGLE_SECRET:               ${{ secrets.GOOGLE_CLIENT_SECRET }}
           AUTH_MICROSOFT_ENTRA_ID_ID:       ${{ secrets.MICROSOFT_CLIENT_ID }}
