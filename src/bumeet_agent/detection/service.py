@@ -101,14 +101,21 @@ class AgentOrchestrator:
 
     async def _api_poll_loop(self) -> None:
         assert self._api is not None
-        headers = {"Authorization": f"Bearer {self._api.token}"}
-        # live-status includes real-time Slack/Teams/Zoom/Webex presence — /busy only checks calendar
-        url = f"{self._api.url}/integrations/live-status"
+        headers = {"x-agent-key": self._api.token}
+        # /agent/live-status uses the permanent agentToken (x-agent-key), not a JWT session token
+        url = f"{self._api.url}/agent/live-status"
         interval = self._api.poll_interval_seconds
         async with aiohttp.ClientSession(headers=headers) as session:
             while True:
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        if resp.status == 401:
+                            logger.warning(
+                                "API token rejected (401) — calendar/Slack integration disabled. "
+                                "Re-pair the agent to restore it."
+                            )
+                            await asyncio.sleep(interval)
+                            continue
                         if resp.status == 200:
                             data: dict[str, Any] = await resp.json()
                             busy: bool = data.get("busy", False)
