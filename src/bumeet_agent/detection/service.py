@@ -16,6 +16,9 @@ from bumeet_agent.domain.state_machine import PresenceStateMachine
 from bumeet_agent.domain.status import HardwareSnapshot, OccupancyStatus
 from bumeet_agent.events.bus import AsyncEventBus
 from bumeet_agent.events.models import EventTopic
+from bumeet_agent.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -69,9 +72,29 @@ class AgentOrchestrator:
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
-        self._last_payload: bytes = b"FREE"  # last payload sent — used by heartbeat
+        # Serialize all BLE writes so a state change and the heartbeat can't race
+        # on the single GATT connection. BleClient owns the authoritative payload.
+        self._send_lock = asyncio.Lock()
 
     _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _MAX_AUTH_BACKOFF_S: float = 300.0   # cap exponential backoff on repeated 401s
+
+    @staticmethod
+    def _log_send_exc(task: asyncio.Task[None]) -> None:
+        """Done-callback: surface exceptions from fire-and-forget send tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.warning("BLE send task failed: %s", exc)
+
+    async def _send(self, payload: bytes) -> None:
+        async with self._send_lock:
+            await self._ble_client.write_now(payload)
+
+    async def _heartbeat_send(self) -> None:
+        async with self._send_lock:
+            await self._ble_client.resend_last()
 
     async def start_api_polling(self) -> None:
         """Poll /integrations/live-status on interval and push to CoreInk."""
@@ -95,9 +118,8 @@ class AgentOrchestrator:
             await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
             if self._pending_send and not self._pending_send.done():
                 continue  # an active send is already in flight — skip
-            self._pending_send = asyncio.create_task(
-                self._ble_client.write_now(self._last_payload)
-            )
+            self._pending_send = asyncio.create_task(self._heartbeat_send())
+            self._pending_send.add_done_callback(self._log_send_exc)
 
     async def _api_poll_loop(self) -> None:
         assert self._api is not None
@@ -105,18 +127,31 @@ class AgentOrchestrator:
         # /agent/live-status uses the permanent agentToken (x-agent-key), not a JWT session token
         url = f"{self._api.url}/agent/live-status"
         interval = self._api.poll_interval_seconds
+        auth_failures = 0
         async with aiohttp.ClientSession(headers=headers) as session:
             while True:
+                sleep_for = interval
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                         if resp.status == 401:
+                            # Token rejected: back off exponentially (honoring any
+                            # Retry-After) so we don't hammer the API while broken.
+                            auth_failures += 1
+                            retry_after = resp.headers.get("Retry-After", "")
+                            if retry_after.isdigit():
+                                sleep_for = min(self._MAX_AUTH_BACKOFF_S, float(retry_after))
+                            else:
+                                sleep_for = min(
+                                    self._MAX_AUTH_BACKOFF_S, interval * (2**auth_failures)
+                                )
                             logger.warning(
-                                "API token rejected (401) — calendar/Slack integration disabled. "
-                                "Re-pair the agent to restore it."
+                                "API token rejected (401) — calendar/Slack integration "
+                                "disabled. Re-pair the agent to restore it. "
+                                "Backing off %.0fs.",
+                                sleep_for,
                             )
-                            await asyncio.sleep(interval)
-                            continue
-                        if resp.status == 200:
+                        elif resp.status == 200:
+                            auth_failures = 0
                             data: dict[str, Any] = await resp.json()
                             busy: bool = data.get("busy", False)
                             upcoming: bool = data.get("upcoming", False)
@@ -130,7 +165,7 @@ class AgentOrchestrator:
                                 await self._push_combined_state(api_data=data)
                 except (TimeoutError, aiohttp.ClientError):
                     pass
-                await asyncio.sleep(interval)
+                await asyncio.sleep(sleep_for)
 
     async def _push_combined_state(self, api_data: dict[str, Any] | None = None) -> None:
         """Send payload to CoreInk. live-status already builds the final payload string."""
@@ -144,10 +179,10 @@ class AgentOrchestrator:
         else:
             payload = b"FREE"
 
-        self._last_payload = payload
-        if self._pending_send and not self._pending_send.done():
-            self._pending_send.cancel()
-        self._pending_send = asyncio.create_task(self._ble_client.write_now(payload))
+        # Don't cancel an in-flight write (it may be mid-GATT); the send lock
+        # serializes this after any pending write. BleClient tracks the payload.
+        self._pending_send = asyncio.create_task(self._send(payload))
+        self._pending_send.add_done_callback(self._log_send_exc)
 
     async def handle_snapshot(self, snapshot: HardwareSnapshot) -> None:
         await self._event_bus.emit(
