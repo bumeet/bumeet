@@ -36,19 +36,24 @@ export default function CalendarPage() {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  const token = (session as any)?.apiToken;
+
   useEffect(() => {
-    const token = (session as any)?.apiToken;
     if (!token) { setLoading(false); return; }
 
+    // Depend on token (not the whole session object, which gets a new reference on
+    // every focus refetch) and ignore stale responses from out-of-order navigation.
+    let ignore = false;
     const start = view === 'month' ? startOfMonth(currentDate) : weekStart;
     const end = view === 'month' ? endOfMonth(currentDate) : addDays(weekStart, 6);
 
     setLoading(true);
     api.get<CalendarEvent[]>(`/calendar/events?start=${start.toISOString()}&end=${end.toISOString()}`, token)
-      .then(setEvents)
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
-  }, [session, currentDate, view]);
+      .then((data) => { if (!ignore) setEvents(data); })
+      .catch(() => { if (!ignore) setEvents([]); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, [token, currentDate, view]);
 
   const filteredEvents = events.filter((e) => activeProviders.has(e.provider));
 

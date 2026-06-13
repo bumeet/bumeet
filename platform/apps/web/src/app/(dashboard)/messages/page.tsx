@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
 import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging, Pin, X } from 'lucide-react';
@@ -376,23 +376,52 @@ export default function MessagesPage() {
     ? { ...displayMessage, id: 'preview', content: content.trim() }
     : displayMessage;
 
+  // Track per-send delivery polls so they can be cleared on unmount (otherwise
+  // they keep calling setMessages on an unmounted component and leak timers).
+  const sendPolls = useRef<
+    { interval: ReturnType<typeof setInterval>; timeout: ReturnType<typeof setTimeout> }[]
+  >([]);
+  useEffect(
+    () => () => {
+      sendPolls.current.forEach(({ interval, timeout }) => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+      });
+      sendPolls.current = [];
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     api.get<Message[]>('/messages', token).then(setMessages).finally(() => setLoading(false));
 
-    const fetchBattery = () =>
+    // Skip polling while the tab is hidden, and refetch on return — an idle
+    // background dashboard shouldn't hit the API every 5 s.
+    const fetchBattery = () => {
+      if (document.visibilityState !== 'visible') return;
       api.get<{ level: number | null; updatedAt: string | null }>('/device/battery', token)
         .then(setBattery).catch(() => {});
-    fetchBattery();
-    const battInterval = setInterval(fetchBattery, 60_000);
-
-    const fetchLiveStatus = () =>
+    };
+    const fetchLiveStatus = () => {
+      if (document.visibilityState !== 'visible') return;
       api.get<{ busy: boolean; upcoming: boolean; payload: string; source: string | null; endAt: string | null }>('/integrations/live-status', token)
         .then(setLiveStatus).catch(() => {});
+    };
+    fetchBattery();
     fetchLiveStatus();
+    const battInterval = setInterval(fetchBattery, 60_000);
     const statusInterval = setInterval(fetchLiveStatus, 5_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') { fetchBattery(); fetchLiveStatus(); }
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
-    return () => { clearInterval(battInterval); clearInterval(statusInterval); };
+    return () => {
+      clearInterval(battInterval);
+      clearInterval(statusInterval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [token]);
 
   const handleSend = async () => {
@@ -409,11 +438,16 @@ export default function MessagesPage() {
 
       if (!permanent) {
         const poll = setInterval(async () => {
-          const updated = await api.get<Message>(`/messages/${msg.id}`, token);
-          setMessages((prev) => prev.map((m) => (m.id === msg.id ? updated : m)));
-          if (updated.status === 'delivered' || updated.status === 'error') clearInterval(poll);
+          try {
+            const updated = await api.get<Message>(`/messages/${msg.id}`, token);
+            setMessages((prev) => prev.map((m) => (m.id === msg.id ? updated : m)));
+            if (updated.status === 'delivered' || updated.status === 'error') clearInterval(poll);
+          } catch {
+            /* ignore transient poll errors */
+          }
         }, 2500);
-        setTimeout(() => clearInterval(poll), 30000);
+        const timeout = setTimeout(() => clearInterval(poll), 30000);
+        sendPolls.current.push({ interval: poll, timeout });
       }
     } catch (err: any) {
       setError(err.message || 'Failed to send');
@@ -534,12 +568,18 @@ export default function MessagesPage() {
                 </span>
               </div>
 
-              {/* Permanent toggle */}
+              {/* Permanent toggle — real checkbox (sr-only) so it's keyboard
+                  focusable and Space-togglable; the div is just the visual track. */}
               <label className="flex items-center gap-2.5 mt-3 cursor-pointer select-none w-fit">
+                <input
+                  type="checkbox"
+                  checked={permanent}
+                  onChange={(e) => setPermanent(e.target.checked)}
+                  className="sr-only peer"
+                />
                 <div
-                  onClick={() => setPermanent((p) => !p)}
                   className={cn(
-                    'w-8 h-4 rounded-full transition-colors relative flex-shrink-0',
+                    'w-8 h-4 rounded-full transition-colors relative flex-shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-1',
                     permanent ? 'bg-brand-500' : 'bg-gray-200',
                   )}
                 >

@@ -63,9 +63,6 @@ export function useBusyStatus(
     source: null,
     endAt: null,
   });
-  const calendarBusy = useRef(false);
-  const latestCalendar = useRef<CalendarStatus>({ busy: false, reason: null, source: null, endAt: null });
-
   const sendMessage = useCallback(
     async (content: string) => {
       if (!token || sending.current) return;
@@ -88,8 +85,6 @@ export function useBusyStatus(
     const check = async () => {
       try {
         const res = await api.get<CalendarStatus>('/integrations/busy', token);
-        calendarBusy.current = res.busy;
-        latestCalendar.current = res;
         setCalendarStatus(res);
       } catch {
         // ignore
@@ -101,28 +96,30 @@ export function useBusyStatus(
     return () => clearInterval(interval);
   }, [token]);
 
-  // Evaluate combined busy state every time slackPresence changes (1s cadence)
+  // Re-evaluate whenever Slack presence OR the calendar status changes. Driving
+  // this off the calendarStatus *state* (not a ref) means a calendar-only
+  // transition (free→busy with no Slack change) is no longer missed.
   useEffect(() => {
     if (!token) return;
 
     const slackBusy = Object.values(slackPresence).some((p) => p.inCall);
-    const isBusy = slackBusy || calendarBusy.current;
+    const isBusy = slackBusy || calendarStatus.busy;
 
     if (wasBusy.current === null) {
       // Send initial state so the display always shows something on first load
       wasBusy.current = isBusy;
-      sendMessage(isBusy ? buildBusyMessage(slackBusy, latestCalendar.current) : 'FREE');
+      sendMessage(isBusy ? buildBusyMessage(slackBusy, calendarStatus) : 'FREE');
       return;
     }
 
     if (isBusy && !wasBusy.current) {
       wasBusy.current = true;
-      sendMessage(buildBusyMessage(slackBusy, latestCalendar.current));
+      sendMessage(buildBusyMessage(slackBusy, calendarStatus));
     } else if (!isBusy && wasBusy.current) {
       wasBusy.current = false;
       sendMessage('FREE');
     }
-  }, [slackPresence, token, sendMessage]);
+  }, [slackPresence, calendarStatus, token, sendMessage]);
 
   return calendarStatus;
 }
