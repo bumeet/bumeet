@@ -55,7 +55,10 @@ static const uint32_t TASK_TIMEOUT_MS     = 60000;
 static const uint32_t AUTO_FREE_TIMEOUT_MS   = 5UL  * 60UL * 1000UL;
 // Reiniciar advertising periódicamente para evitar que NimBLE deje de anunciar
 // tras horas sin conexión (bug conocido en algunos builds de NimBLE-Arduino).
-static const uint32_t ADV_RESTART_INTERVAL_MS = 30UL * 60UL * 1000UL;
+static const uint32_t ADV_RESTART_INTERVAL_MS = 2UL * 60UL * 1000UL;
+// Refresco completo de la pantalla e-ink cada 4 h para restaurar contraste y
+// evitar ghosting cuando el contenido lleva horas sin cambiar.
+static const uint32_t DISPLAY_REFRESH_INTERVAL_MS = 4UL * 60UL * 60UL * 1000UL;
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 static Preferences           gPrefs;
@@ -68,7 +71,8 @@ static unsigned long         gDisconnectedMs = 0;  // millis() cuando se perdió
 static NimBLECharacteristic* pBattChar       = nullptr;
 static unsigned long         gLastBattMs     = 0;
 static unsigned long         gLastRefreshMs  = 0;
-static unsigned long         gLastAdvRestart = 0;
+static unsigned long         gLastAdvRestart    = 0;
+static unsigned long         gLastDisplayRefresh = 0;
 static TaskHandle_t          gMainTask     = nullptr;
 static portMUX_TYPE          gMsgMux       = portMUX_INITIALIZER_UNLOCKED;
 
@@ -152,11 +156,11 @@ static void renderUpcoming(const String& src, const String& detail) {
     M5.Display.display();
 }
 
-static void renderMessage(const String& msg) {
+static void renderMessage(const String& msg, bool forceQuality = false) {
     String hdr, src, detail;
     parsePayload(msg, hdr, src, detail);
     M5.Display.wakeup();  // activa el controlador e-ink antes de dibujar
-    M5.Display.setEpdMode(isMajorTransition(gCurrentMsg, msg)
+    M5.Display.setEpdMode((forceQuality || isMajorTransition(gCurrentMsg, msg))
         ? epd_mode_t::epd_quality
         : epd_mode_t::epd_fast);
     if      (hdr == "FREE")     renderFree();
@@ -282,7 +286,8 @@ void setup() {
     gLastPersistedMsg     = restoredMsg;
     // gCurrentMsg queda vacío para que isMajorTransition fuerce epd_quality en el primer render
     renderMessage(restoredMsg);
-    gCurrentMsg = restoredMsg;
+    gCurrentMsg         = restoredMsg;
+    gLastDisplayRefresh = millis();  // primer refresco completo en 4 h, no inmediatamente
 
     gMainTask = xTaskGetCurrentTaskHandle();
     initBLE();
@@ -373,7 +378,16 @@ void loop() {
         if (gMainTask) xTaskNotifyGive(gMainTask);
     }
 
-    // ── Watchdog advertising: reiniciar cada 30 min si no hay conexión ────────
+    // ── Refresco completo de pantalla e-ink cada 4 h ─────────────────────────
+    // El panel e-ink pierde contraste y desarrolla ghosting si el contenido
+    // lleva horas sin cambiar. Un ciclo epd_quality restaura los píxeles.
+    // Solo se hace si no hay un redibujado pendiente para evitar parpadeo.
+    if (!gNeedsRedraw && millis() - gLastDisplayRefresh >= DISPLAY_REFRESH_INTERVAL_MS) {
+        gLastDisplayRefresh = millis();
+        renderMessage(gCurrentMsg, true);  // epd_quality forzado
+    }
+
+    // ── Watchdog advertising: reiniciar cada 2 min si no hay conexión ────────
     // NimBLE puede dejar de anunciar internamente tras horas sin conexión.
     // Forzar start() es idempotente si ya está corriendo.
     if (!gConnected && millis() - gLastAdvRestart >= ADV_RESTART_INTERVAL_MS) {
