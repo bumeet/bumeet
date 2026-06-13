@@ -33,6 +33,7 @@
 #include <WiFi.h>
 #include <esp_pm.h>
 #include <esp_bt.h>
+#include <esp_task_wdt.h>
 
 // ─── BLE UUIDs y constantes de conexión ──────────────────────────────────────
 static const char* SVC_UUID      = "a1b2c3d4-e5f6-7890-abcd-ef1234567891";
@@ -67,6 +68,7 @@ static String                gPendingMsg;        // mensaje recibido por BLE, pe
 static String                gLastPersistedMsg;  // último valor escrito en NVS
 static volatile bool         gNeedsRedraw    = false;
 static bool                  gConnected      = false;
+static volatile bool         gNeedAdvRestart = false;  // onDisconnect lo activa; el loop reanuda advertising
 static unsigned long         gDisconnectedMs = 0;  // millis() cuando se perdió la última conexión
 static NimBLECharacteristic* pBattChar       = nullptr;
 static unsigned long         gLastBattMs     = 0;
@@ -184,7 +186,7 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
         gConnected      = false;
         gDisconnectedMs = millis();  // arrancar el contador para auto-FREE
-        NimBLEDevice::getAdvertising()->start();
+        gNeedAdvRestart = true;      // el loop (single-threaded) reanuda advertising
         if (gMainTask) xTaskNotifyGive(gMainTask);  // despertar el loop para recalcular timeout
     }
 };
@@ -196,7 +198,8 @@ class WriteCallback : public NimBLECharacteristicCallbacks {
 
         String incoming(val.c_str(), val.size());
         incoming.trim();
-        if (incoming == gCurrentMsg) return;
+        // No comparar contra gCurrentMsg aquí: lo escribe el loop en otro task
+        // (data race en la reasignación del String). El loop deduplica.
 
         portENTER_CRITICAL(&gMsgMux);
         gPendingMsg  = incoming;
@@ -280,6 +283,10 @@ void setup() {
     initPower();   // WiFi off + BT Classic off + light sleep — primero por los clocks
     initDisplay(); // M5.begin + hold pin re-assert
 
+    // Desuscribir esta tarea del watchdog: el loop bloquea hasta 60 s en light
+    // sleep, lo que dispararía el WDT del loop si el build lo trae activado.
+    esp_task_wdt_delete(NULL);
+
     // Restaurar último estado desde NVS (partición abierta una sola vez)
     gPrefs.begin("bumeet", false);
     String restoredMsg    = gPrefs.getString("msg", "FREE");
@@ -353,7 +360,7 @@ void loop() {
         portEXIT_CRITICAL(&gMsgMux);
     }
 
-    if (needsRedraw) {
+    if (needsRedraw && toRender != gCurrentMsg) {
         renderMessage(toRender);
         gCurrentMsg    = toRender;
         gLastRefreshMs = millis();
@@ -371,11 +378,14 @@ void loop() {
     if (!gConnected
         && gCurrentMsg != "FREE"
         && millis() - gDisconnectedMs >= AUTO_FREE_TIMEOUT_MS) {
+        // Encolar una sola vez. El loop re-itera y lo renderiza (waitTicks = 0);
+        // sin auto-notify, evitando el spin de despertar la propia tarea.
         portENTER_CRITICAL(&gMsgMux);
-        gPendingMsg  = "FREE";
-        gNeedsRedraw = true;
+        if (gPendingMsg != "FREE") {
+            gPendingMsg  = "FREE";
+            gNeedsRedraw = true;
+        }
         portEXIT_CRITICAL(&gMsgMux);
-        if (gMainTask) xTaskNotifyGive(gMainTask);
     }
 
     // ── Refresco completo de pantalla e-ink cada 4 h ─────────────────────────
@@ -387,13 +397,23 @@ void loop() {
         renderMessage(gCurrentMsg, true);  // epd_quality forzado
     }
 
+    // ── Reanudar advertising tras desconexión (centralizado en el loop) ───────
+    // onDisconnect solo marca el flag; aquí, en contexto single-threaded, lo
+    // arrancamos y re-armamos el watchdog para que no lo tumbe de inmediato.
+    if (gNeedAdvRestart) {
+        gNeedAdvRestart = false;
+        NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
+        if (!pAdv->start()) { pAdv->stop(); pAdv->start(); }  // reintento simple
+        gLastAdvRestart = millis();
+    }
+
     // ── Watchdog advertising: reiniciar cada 2 min si no hay conexión ────────
     // NimBLE puede dejar de anunciar internamente tras horas sin conexión.
-    // Forzar start() es idempotente si ya está corriendo.
     if (!gConnected && millis() - gLastAdvRestart >= ADV_RESTART_INTERVAL_MS) {
         gLastAdvRestart = millis();
-        NimBLEDevice::getAdvertising()->stop();
-        NimBLEDevice::getAdvertising()->start();
+        NimBLEAdvertising* pAdv = NimBLEDevice::getAdvertising();
+        pAdv->stop();
+        if (!pAdv->start()) { pAdv->stop(); pAdv->start(); }
     }
 
     // ── Batería cada 10 min — notify solo si cambió ───────────────────────────
