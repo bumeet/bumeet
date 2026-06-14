@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useBusyStatus, type CalendarStatus } from '@/lib/useBusyStatus';
@@ -38,7 +38,7 @@ const PROVIDERS = [
 const MAX_ACCOUNTS = 5;
 
 function IntegrationsInner() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -49,6 +49,10 @@ function IntegrationsInner() {
   const [webexPresence, setWebexPresence] = useState<Record<string, WebexPresence>>({});
 
   const token = session?.apiToken;
+  // Session exists (user is logged in) but apiToken is missing — this happens when the
+  // user signed in via OAuth before INTERNAL_AUTH_SECRET was configured. They must
+  // sign out and back in so the jwt callback can re-issue the API token.
+  const sessionBroken = sessionStatus === 'authenticated' && !token;
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -187,6 +191,29 @@ function IntegrationsInner() {
   };
 
   if (loading) return <div className="p-4 sm:p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (sessionBroken) {
+    return (
+      <div className="p-8 max-w-3xl mx-auto">
+        <div className="flex flex-col items-center gap-4 bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
+          <AlertCircle size={32} className="text-amber-500" />
+          <div>
+            <p className="font-semibold text-gray-900">Session needs refresh</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Your session is missing the API token. This happens after a server restart or configuration change.
+              Sign out and back in to fix it.
+            </p>
+          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg text-sm transition-colors"
+          >
+            Sign out and refresh session
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-8 max-w-3xl mx-auto">
