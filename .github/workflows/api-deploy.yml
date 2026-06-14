@@ -39,6 +39,29 @@ jobs:
         id: meta
         run: echo "tag=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm --dir platform install --frozen-lockfile
+
+      - name: Run Prisma migrations
+        run: |
+          DATABASE_URL=$(az webapp config appsettings list \
+            --name ${{ env.APP_NAME }} \
+            --resource-group rg-bumeet-dev \
+            --query "[?name=='DATABASE_URL'].value" -o tsv)
+          DATABASE_URL="$DATABASE_URL" pnpm --filter api exec prisma migrate deploy
+
       - name: Build & push Docker image
         uses: docker/build-push-action@v5
         with:
