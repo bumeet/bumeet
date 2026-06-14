@@ -27,12 +27,6 @@ variable "api_sku_name" {
   default     = "B1"
 }
 
-variable "api_node_version" {
-  description = "Node.js version string for App Service Linux stack."
-  type        = string
-  default     = "20-lts"
-}
-
 variable "api_always_on" {
   description = "Keep the app warmed up. Requires Basic tier or above."
   type        = bool

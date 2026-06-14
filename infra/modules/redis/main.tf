@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.7.0"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.110"
+    }
+  }
+}
+
 resource "azurerm_redis_cache" "this" {
   name                = var.name
   resource_group_name = var.resource_group_name
@@ -6,7 +16,6 @@ resource "azurerm_redis_cache" "this" {
   family              = var.family
   sku_name            = var.sku_name
 
-  enable_non_ssl_port = false
   minimum_tls_version = "1.2"
 
   redis_configuration {}
