@@ -469,11 +469,11 @@ export default function MessagesPage() {
   const remaining = MAX_LEN - content.length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-10">
+    <div className="min-h-full bg-muted/30">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl font-bold text-gray-900">E-ink Display</h1>
           <p className="text-gray-500 mt-1 text-sm">
             Send messages to your M5Stack CoreInk desk display. Status updates automatically from your calendar and Slack.
