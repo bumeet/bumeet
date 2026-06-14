@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -72,12 +73,15 @@ class AgentOrchestrator:
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
+        self._last_api_data: dict[str, Any] | None = None
+        self._last_api_success_at: float = 0.0
         # Serialize all BLE writes so a state change and the heartbeat can't race
         # on the single GATT connection. BleClient owns the authoritative payload.
         self._send_lock = asyncio.Lock()
 
-    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
-    _MAX_AUTH_BACKOFF_S: float = 300.0   # cap exponential backoff on repeated 401s
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60   # resend current state every 5 min
+    _MAX_AUTH_BACKOFF_S: float = 300.0    # cap exponential backoff on repeated 401s
+    _API_STALENESS_S: float = 15 * 60.0  # treat cached API data as stale after 15 min without a successful poll
 
     @staticmethod
     def _log_send_exc(task: asyncio.Task[None]) -> None:
@@ -155,6 +159,10 @@ class AgentOrchestrator:
                             data: dict[str, Any] = await resp.json()
                             busy: bool = data.get("busy", False)
                             upcoming: bool = data.get("upcoming", False)
+                            # Always track last successful response so _push_combined_state
+                            # can use it when triggered by a hardware change (no api_data arg).
+                            self._last_api_data = data
+                            self._last_api_success_at = time.monotonic()
                             effective_busy = busy and not upcoming
                             if (
                                 effective_busy != self._last_api_busy
@@ -169,12 +177,22 @@ class AgentOrchestrator:
 
     async def _push_combined_state(self, api_data: dict[str, Any] | None = None) -> None:
         """Send payload to CoreInk. live-status already builds the final payload string."""
-        # If hardware (mic/cam) is active, override with BUSY · Call regardless of API state
+        # When called from a hardware event (no api_data), fall back to the cached API
+        # response so UPCOMING meetings aren't lost when the mic/cam state changes.
+        # Discard the cache if the API has been unreachable long enough to be stale —
+        # in that case we'd rather show FREE than a payload that may be hours old.
+        effective_api = api_data
+        if effective_api is None and self._last_api_data is not None:
+            age = time.monotonic() - self._last_api_success_at
+            if age < self._API_STALENESS_S:
+                effective_api = self._last_api_data
+
         if self._last_hw_busy:
             payload = b"BUSY"
-        elif api_data and (api_data.get("busy") or api_data.get("upcoming")):
-            # payload field from live-status is the ready-to-send string (e.g. "BUSY · Slack")
-            raw: str = api_data.get("payload") or ("BUSY" if api_data.get("busy") else "FREE")
+        elif effective_api and (effective_api.get("busy") or effective_api.get("upcoming")):
+            # payload field from live-status is the ready-to-send string
+            # (e.g. "BUSY · Slack", "UPCOMING · Google Calendar · starts 14:30")
+            raw: str = effective_api.get("payload") or ("BUSY" if effective_api.get("busy") else "FREE")
             payload = raw.encode("utf-8")
         else:
             payload = b"FREE"
