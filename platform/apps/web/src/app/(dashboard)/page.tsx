@@ -25,6 +25,10 @@ const PROVIDER_COLORS: Record<string, { bg: string; border: string; dot: string;
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 7am to 10pm
 
+type DayEventsGetter = (day: Date) => CalendarEvent[];
+type TopPercent = (startAt: string) => number;
+type HeightPercent = (startAt: string, endAt: string) => number;
+
 export default function CalendarPage() {
   const { data: session } = useSession();
   const [view, setView] = useState<'week' | 'day' | 'month'>('week');
@@ -36,7 +40,7 @@ export default function CalendarPage() {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const token = (session as any)?.apiToken;
+  const token = session?.apiToken;
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
@@ -85,7 +89,7 @@ export default function CalendarPage() {
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-semibold text-gray-900">Calendar</h1>
             <div className="flex items-center gap-1">
-              <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => navigate(-1)} aria-label="Previous period" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <ChevronLeft size={16} className="text-gray-600" />
               </button>
               <span className="text-sm font-medium text-gray-700 min-w-36 text-center">
@@ -93,7 +97,7 @@ export default function CalendarPage() {
                   : view === 'day' ? format(currentDate, 'MMMM d, yyyy')
                   : format(currentDate, 'MMMM yyyy')}
               </span>
-              <button onClick={() => navigate(1)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => navigate(1)} aria-label="Next period" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <ChevronRight size={16} className="text-gray-600" />
               </button>
               <button onClick={() => setCurrentDate(new Date())} className="ml-2 px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
@@ -174,7 +178,13 @@ function EventChip({ event, style }: { event: CalendarEvent; style?: React.CSSPr
   );
 }
 
-function WeekView({ weekDays, hours, getEventsForDay, getEventTopPercent, getEventHeightPercent }: any) {
+function WeekView({ weekDays, hours, getEventsForDay, getEventTopPercent, getEventHeightPercent }: {
+  weekDays: Date[];
+  hours: number[];
+  getEventsForDay: DayEventsGetter;
+  getEventTopPercent: TopPercent;
+  getEventHeightPercent: HeightPercent;
+}) {
   const totalHeight = 900;
   return (
     <div className="flex-1 overflow-auto">
@@ -226,7 +236,13 @@ function WeekView({ weekDays, hours, getEventsForDay, getEventTopPercent, getEve
   );
 }
 
-function DayView({ day, hours, events, getEventTopPercent, getEventHeightPercent }: any) {
+function DayView({ day, hours, events, getEventTopPercent, getEventHeightPercent }: {
+  day: Date;
+  hours: number[];
+  events: CalendarEvent[];
+  getEventTopPercent: TopPercent;
+  getEventHeightPercent: HeightPercent;
+}) {
   const totalHeight = 900;
   return (
     <div className="flex-1 overflow-auto">
@@ -259,7 +275,7 @@ function DayView({ day, hours, events, getEventTopPercent, getEventHeightPercent
   );
 }
 
-function MonthView({ currentDate, getEventsForDay }: any) {
+function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEventsForDay: DayEventsGetter }) {
   const start = startOfMonth(currentDate);
   const end = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start, end });

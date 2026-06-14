@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging, Pin, X } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, BatteryLow, BatteryMedium, BatteryFull, Pin, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -333,7 +333,7 @@ const TEMPLATES = [
 
 const MAX_LEN = 200;
 
-const STATUS_CONFIG: Record<string, { icon: any; label: string; className: string }> = {
+const STATUS_CONFIG: Record<string, { icon: LucideIcon; label: string; className: string }> = {
   pending:   { icon: Loader2,      label: 'Sending…',   className: 'text-yellow-600 bg-yellow-50' },
   sent:      { icon: Clock,        label: 'Sent',        className: 'text-blue-600 bg-blue-50' },
   delivered: { icon: CheckCircle,  label: 'Delivered',   className: 'text-green-600 bg-green-50' },
@@ -355,7 +355,7 @@ export default function MessagesPage() {
   const [battery, setBattery] = useState<{ level: number | null; updatedAt: string | null }>({ level: null, updatedAt: null });
   const [liveStatus, setLiveStatus] = useState<{ busy: boolean; upcoming: boolean; payload: string; source: string | null; endAt: string | null } | null>(null);
 
-  const token = (session as any)?.apiToken;
+  const token = session?.apiToken;
 
   // Device preview: typed content > live status > last delivered message > FREE
   const liveMessage: Message | null = liveStatus
@@ -449,8 +449,8 @@ export default function MessagesPage() {
         const timeout = setTimeout(() => clearInterval(poll), 30000);
         sendPolls.current.push({ interval: poll, timeout });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to send');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send');
     } finally {
       setSending(false);
     }

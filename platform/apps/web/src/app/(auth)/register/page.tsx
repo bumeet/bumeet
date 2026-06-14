@@ -23,8 +23,8 @@ export default function RegisterPage() {
       const res = await signIn('credentials', { email: form.email, password: form.password, redirect: false });
       if (res?.error) setError('Registration succeeded but login failed. Please sign in.');
       else router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }

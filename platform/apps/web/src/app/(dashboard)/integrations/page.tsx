@@ -45,7 +45,7 @@ function IntegrationsInner() {
   const [zoomPresence,  setZoomPresence]  = useState<Record<string, ZoomPresence>>({});
   const [webexPresence, setWebexPresence] = useState<Record<string, WebexPresence>>({});
 
-  const token = (session as any)?.apiToken;
+  const token = session?.apiToken;
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -155,11 +155,11 @@ function IntegrationsInner() {
     setConnecting(provider);
     setConnectError(null);
     try {
-      const result = await api.post<any>(`/integrations/connect/${provider}`, {}, token);
+      const result = await api.post<Integration & { redirectUrl?: string }>(`/integrations/connect/${provider}`, {}, token);
       if (result?.redirectUrl) { window.location.href = result.redirectUrl; return; }
       setIntegrations((prev) => [...prev, result]);
-    } catch (err: any) {
-      setConnectError(err.message || 'Failed to connect. Please try again.');
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to connect. Please try again.');
     } finally {
       setConnecting(null);
     }

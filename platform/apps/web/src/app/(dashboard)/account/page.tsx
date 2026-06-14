@@ -15,7 +15,7 @@ const LANGUAGES = [{ value: 'en', label: 'English' }, { value: 'es', label: 'Esp
 
 export default function AccountPage() {
   const { data: session } = useSession();
-  const token = (session as any)?.apiToken;
+  const token = session?.apiToken;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -58,8 +58,8 @@ export default function AccountPage() {
       setPasswords({ current: '', next: '', confirm: '' });
       setPwSaved(true);
       setTimeout(() => setPwSaved(false), 3000);
-    } catch (err: any) {
-      setPwError(err.message || 'Failed to change password');
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : 'Failed to change password');
     }
   };
 
