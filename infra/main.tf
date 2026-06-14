@@ -130,9 +130,9 @@ module "app_service" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
-  sku_name     = var.api_sku_name
-  node_version = var.api_node_version
-  always_on    = var.api_always_on
+  sku_name                  = var.api_sku_name
+  always_on                 = var.api_always_on
+  container_registry_server = module.container_registry.login_server
 
   app_settings = {
     # Key Vault references — App Service resolves these at runtime via managed identity
@@ -148,6 +148,16 @@ module "app_service" {
   tags = local.common_tags
 
   depends_on = [module.key_vault]
+}
+
+# Grant the App Service managed identity AcrPull on the registry so it can
+# pull Docker images without stored credentials.
+resource "azurerm_role_assignment" "app_service_acr_pull" {
+  scope                = module.container_registry.id
+  role_definition_name = "AcrPull"
+  principal_id         = module.app_service.principal_id
+
+  depends_on = [module.container_registry, module.app_service]
 }
 
 # ── Observability: Log Analytics + Application Insights + alerting ────────────
