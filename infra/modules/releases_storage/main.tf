@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.7.0"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.110"
+    }
+  }
+}
+
 # Storage account that hosts publicly downloadable agent release binaries.
 # The 'releases' container has anonymous blob-level read access so installers
 # can download without authentication.

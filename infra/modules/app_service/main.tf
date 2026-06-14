@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.7.0"
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.110"
+    }
+  }
+}
+
 resource "azurerm_service_plan" "this" {
   name                = "${var.name}-plan"
   resource_group_name = var.resource_group_name
