@@ -56,11 +56,12 @@ jobs:
 
       - name: Run Prisma migrations
         run: |
-          DATABASE_URL=$(az webapp config appsettings list \
+          export DATABASE_URL=$(az webapp config appsettings list \
             --name ${{ env.APP_NAME }} \
             --resource-group rg-bumeet-dev \
             --query "[?name=='DATABASE_URL'].value" -o tsv)
-          DATABASE_URL="$DATABASE_URL" pnpm --filter api exec prisma migrate deploy
+          echo "DATABASE_URL length: ${#DATABASE_URL}"
+          pnpm --filter api exec prisma migrate deploy
 
       - name: Build & push Docker image
         uses: docker/build-push-action@v5
