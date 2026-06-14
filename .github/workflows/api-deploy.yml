@@ -56,9 +56,15 @@ jobs:
 
       - name: Run Prisma migrations
         run: |
-          export DATABASE_URL=$(az keyvault secret show \
+          export RAW_URL=$(az keyvault secret show \
             --id "https://kv-bumeet-dev.vault.azure.net/secrets/DATABASE-URL/" \
             --query value -o tsv)
+          # Re-encode the URL so special chars in the password don't confuse Prisma CLI
+          export DATABASE_URL=$(node -e "
+            const u = new URL(process.env.RAW_URL);
+            u.password = encodeURIComponent(decodeURIComponent(u.password));
+            process.stdout.write(u.toString());
+          ")
           echo "DATABASE_URL length: ${#DATABASE_URL}"
           pnpm --filter api exec prisma migrate deploy
 
