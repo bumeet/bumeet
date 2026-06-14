@@ -76,8 +76,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.apiToken = user.apiToken;
         return token;
       }
-      // OAuth login — call backend to get API token. Some providers expose the
-      // address under non-standard claims (Entra: preferred_username, etc.).
+
+      // On OAuth sign-in, persist the verified identity onto the JWT so the API
+      // token can be (re)fetched on any later request — not only at sign-in.
+      // Some providers expose the address under non-standard claims
+      // (Entra: preferred_username, etc.).
       if (account?.type === 'oauth' || account?.type === 'oidc') {
         const oauthProfile = (profile ?? {}) as {
           email?: string;
@@ -85,17 +88,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           preferred_username?: string;
           displayName?: string;
         };
-        const email = oauthProfile.email ?? oauthProfile.preferred_username;
-        const name = oauthProfile.name ?? oauthProfile.displayName;
-        console.log('[auth] OAuth login:', account.provider, 'email:', email);
-        if (email) {
-          const data = await getApiToken(account.provider, email, name);
-          if (data) token.apiToken = data.token;
-          else console.error('[auth] getApiToken returned null for', account.provider);
-        } else {
-          console.error('[auth] No email in profile for provider', account.provider, JSON.stringify(profile));
-        }
+        token.provider = account.provider;
+        token.email = token.email ?? oauthProfile.email ?? oauthProfile.preferred_username;
+        token.name = token.name ?? oauthProfile.name ?? oauthProfile.displayName;
       }
+
+      // Self-heal: whenever the API token is missing (e.g. the server-to-server
+      // /auth/oauth-login call failed at sign-in, or this session predates the
+      // token), retry on each request instead of stranding the user as
+      // "Not authenticated" until they sign out and back in.
+      const provider = token.provider as string | undefined;
+      if (!token.apiToken && provider && token.email) {
+        const data = await getApiToken(provider, token.email, token.name ?? undefined);
+        if (data) token.apiToken = data.token;
+        else console.error('[auth] getApiToken returned null for', provider);
+      }
+
       return token;
     },
     session({ session, token }) {
