@@ -142,6 +142,8 @@ const T = {
       successH: "We'll be in touch shortly.",
       successP: 'Our team typically responds within one business day.',
       or: 'Or email us directly at',
+      errorH: "Couldn't send your message",
+      errorP: 'Please try again, or email us directly.',
     },
     footer: {
       tagline: 'Protecting focus, one door at a time.',
@@ -157,18 +159,18 @@ const T = {
       download: 'Descargar',
       contact: 'Contacto',
       login: 'Acceder',
-      demo: 'Solicitar demo',
+      demo: 'Pedir una demo',
     },
     hero: {
       badge: 'Bluetooth · Sin cables · 12 meses de batería',
       h1a: 'Acaba con las',
       h1b: 'interrupciones.',
-      h1c: 'Protege el foco de tu equipo.',
-      sub: 'Una pantalla e-ink inalámbrica para tu puerta que detecta Zoom, Teams, Slack y eventos de calendario — automáticamente. Sin cables, sin apps, sin ninguna acción.',
-      cta1: 'Solicitar demo para mi equipo',
+      h1c: 'Protege la concentración de tu equipo.',
+      sub: 'Una pantalla inalámbrica para tu puerta que detecta tus llamadas de Zoom, Teams, Slack y tu calendario de forma automática. Sin cables, sin apps y sin que tengas que hacer nada.',
+      cta1: 'Pedir una demo para mi equipo',
       cta2: 'Descargar el agente',
-      social: 'Hecho para equipos remotos de toda Europa',
-      detected: 'Detectado automáticamente · <1 s',
+      social: 'Pensado para equipos en remoto de toda Europa',
+      detected: 'Detección automática · menos de 1 s',
       zoomCall: 'Llamada de Zoom en curso',
       battery: '12 meses de batería',
       batteryDate: 'Última carga: ene 2025',
@@ -177,90 +179,90 @@ const T = {
     eink: {
       available: 'Disponible',
       busy: 'Ocupado',
-      inMeeting: 'En reunión',
-      ends: 'Termina · 16:00',
-      comeIn: 'Pasa adelante',
+      inMeeting: 'En una reunión',
+      ends: 'Acaba · 16:00',
+      comeIn: 'Puedes pasar',
     },
     why: {
       label: 'Por qué BUMEET',
-      h2a: 'Hecho para el trabajo profundo.',
+      h2a: 'Hecho para trabajar concentrado.',
       h2b: 'Diseñado para pasar desapercibido.',
-      sub: 'Sin paneles que consultar ni estados que actualizar manualmente. BUMEET detecta tus llamadas y actualiza la pantalla automáticamente.',
+      sub: 'No hay paneles que mirar ni estados que cambiar a mano. BUMEET detecta tus llamadas y actualiza la pantalla por ti.',
       props: [
         {
-          tag: 'Sincronización instantánea',
-          title: 'Detecta cada llamada. Automáticamente.',
-          desc: 'BUMEET monitoriza la actividad de cámara y micrófono en Zoom, Teams, Google Meet y Slack. La pantalla se actualiza en menos de un segundo.',
+          tag: 'Al instante',
+          title: 'Detecta cada llamada. Sin que hagas nada.',
+          desc: 'BUMEET nota cuándo usas la cámara o el micrófono en Zoom, Teams, Google Meet o Slack. La pantalla cambia en menos de un segundo.',
         },
         {
           tag: 'Sin cables',
-          title: 'E-ink. Bluetooth. Un año de batería.',
-          desc: 'La e-ink solo consume energía cuando cambia el contenido. Una carga dura hasta 12 meses. Sin adaptador, sin cable USB, sin configuración Wi-Fi.',
+          title: 'Tinta electrónica. Bluetooth. Un año de batería.',
+          desc: 'La tinta electrónica (e-ink) solo gasta batería cuando cambia lo que muestra. Una carga dura hasta 12 meses. Sin enchufe, sin cable USB y sin configurar wifi.',
         },
         {
-          tag: 'Privacidad total',
+          tag: 'Privacidad',
           title: 'Tu cámara nunca se graba.',
-          desc: 'Solo se sincroniza tu estado de presencia (libre / ocupado), cifrado en tránsito. Tú decides qué integraciones autorizas y puedes pausar el agente en cualquier momento.',
+          desc: 'Solo se comparte si estás libre u ocupado, y viaja cifrado. Tú eliges qué conectas y puedes pausar el agente cuando quieras.',
         },
       ],
     },
     how: {
       label: 'Listo en minutos',
-      h2: 'Tres pasos para cero interrupciones.',
+      h2: 'Tres pasos y se acabaron las interrupciones.',
       steps: [
         {
           title: 'Instala el agente',
-          desc: 'Descarga la app ligera en segundo plano para macOS, Windows o Linux. Se lanza silenciosamente al iniciar sesión, sin ninguna configuración.',
+          desc: 'Descarga la pequeña app para macOS, Windows o Linux. Se abre sola al encender el ordenador, sin configurar nada.',
         },
         {
           title: 'Conecta la pantalla',
-          desc: 'Pega la pantalla BUMEET en tu puerta y enciéndela. El agente la encuentra automáticamente vía Bluetooth Low Energy.',
+          desc: 'Pega la pantalla BUMEET en tu puerta y enciéndela. El agente la encuentra solo por Bluetooth.',
         },
         {
-          title: 'Trabaja sin interrupciones',
-          desc: 'Únete a cualquier llamada — la pantalla de la puerta se actualiza en menos de un segundo. Sin golpes en la puerta, sin mensajes de "¿estás libre?".',
+          title: 'Trabaja tranquilo',
+          desc: 'Entra en cualquier llamada y la pantalla de la puerta cambia en menos de un segundo. Tus compañeros lo ven al momento: sin llamar a la puerta ni preguntar "¿tienes un momento?".',
         },
       ],
     },
     download: {
-      label: 'Descarga gratuita',
-      h2: 'Descarga el agente BUMEET',
-      sub: 'El agente corre en segundo plano y mantiene tu pantalla de puerta sincronizada vía Bluetooth.',
+      label: 'Descarga gratis',
+      h2: 'Descarga el agente de BUMEET',
+      sub: 'El agente funciona en segundo plano en tu ordenador y mantiene al día la pantalla de tu puerta por Bluetooth.',
       btn: 'Descargar',
       notes: {
-        mac: 'Clic derecho en el PKG → Abrir si Gatekeeper lo bloquea',
-        win: 'Ejecuta el .exe directamente, sin instalación',
-        linux: 'Ejecuta chmod +x antes de lanzar',
+        mac: 'Si Gatekeeper lo bloquea: clic derecho en el PKG → Abrir',
+        win: 'Ejecuta el .exe directamente, no hay que instalar nada',
+        linux: 'Dale permisos con chmod +x antes de ejecutarlo',
       },
-      github: 'Ver código fuente en GitHub',
+      github: 'Ver el código en GitHub',
     },
     b2b: {
-      badge: 'Para RR.HH. y People teams',
+      badge: 'Para Recursos Humanos',
       h2a: 'El mejor regalo de bienvenida',
-      h2b: 'que no sabías que necesitabas.',
-      p1: 'Los trabajadores remotos e híbridos pierden una media de 2,1 horas al día por interrupciones innecesarias. BUMEET es la herramienta de foco que se amortiza en la primera semana.',
-      p2: 'Inclúyelo en tu Welcome Pack de incorporación. Muestra a tu equipo que te tomas en serio su foco — con el logo de tu empresa en cada pantalla en reposo.',
+      h2b: 'que aún no se te había ocurrido.',
+      p1: 'Quien trabaja en remoto o en híbrido pierde de media 2,1 horas al día por interrupciones que se pueden evitar. BUMEET se paga solo en la primera semana.',
+      p2: 'Inclúyelo en el kit de bienvenida de los nuevos empleados. Demuestra a tu equipo que cuidas su concentración, con el logo de tu empresa en cada pantalla en reposo.',
       features: [
-        'Logo personalizado en pantalla de reposo',
-        'Incorporación masiva — despliega 100 dispositivos en minutos',
-        'Welcome Pack personalizado para nuevas incorporaciones',
-        'Panel de gestión centralizado de dispositivos',
-        'Precios por volumen desde 10 unidades',
-        'Account manager dedicado + SLA',
+        'El logo de tu empresa en la pantalla en reposo',
+        'Configura 100 dispositivos en minutos',
+        'Kit de bienvenida personalizado para nuevos empleados',
+        'Un único panel para gestionar todos los dispositivos',
+        'Precio por volumen desde 10 unidades',
+        'Gestor de cuenta dedicado y soporte garantizado',
       ],
       cta1: 'Hablar con ventas',
-      cta2: 'Descargar dossier',
+      cta2: 'Descargar el folleto',
       stats: [
-        { stat: '< 1 s', label: 'Latencia de actualización' },
-        { stat: '12 m', label: 'Batería por dispositivo' },
-        { stat: '100%', label: 'Inalámbrico — sin cables' },
+        { stat: '< 1 s', label: 'En actualizar la pantalla' },
+        { stat: '12 meses', label: 'De batería por dispositivo' },
+        { stat: '100%', label: 'Sin cables' },
         { stat: '0', label: 'Pasos de configuración' },
       ],
     },
     contact: {
-      label: 'Contacta con nosotros',
-      h2: '¿Listo para proteger el foco de tu equipo?',
-      sub: 'Solicita una demo, pregunta por precios por volumen o simplemente saluda.',
+      label: 'Hablemos',
+      h2: '¿Quieres que tu equipo trabaje sin interrupciones?',
+      sub: 'Pide una demo, pregunta por el precio por volumen o solo salúdanos.',
       name: 'Nombre completo',
       namePh: 'Ana García',
       email: 'Email de trabajo',
@@ -268,15 +270,17 @@ const T = {
       company: 'Empresa',
       companyPh: 'Empresa S.L. (opcional)',
       message: 'Mensaje',
-      messagePh: 'Busco 50 unidades para el onboarding de mi equipo remoto…',
+      messagePh: 'Quiero 50 unidades para dar la bienvenida a mi equipo en remoto…',
       send: 'Enviar mensaje',
       sending: 'Enviando…',
-      successH: 'Nos pondremos en contacto pronto.',
-      successP: 'Nuestro equipo responde habitualmente en un día laborable.',
+      successH: 'Te escribimos enseguida.',
+      successP: 'Solemos responder en un día laborable.',
       or: 'O escríbenos directamente a',
+      errorH: 'No se pudo enviar',
+      errorP: 'Inténtalo otra vez o escríbenos por email.',
     },
     footer: {
-      tagline: 'Protegiendo el foco, una puerta a la vez.',
+      tagline: 'Cuidamos tu concentración, puerta a puerta.',
       rights: 'Todos los derechos reservados.',
       privacy: 'Política de privacidad',
       terms: 'Términos de servicio',
@@ -673,7 +677,7 @@ function HowItWorks() {
   ];
 
   return (
-    <section id="how-it-works" className="py-24 bg-slate-50">
+    <section id="how-it-works" className="scroll-mt-20 py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
@@ -746,7 +750,7 @@ function DownloadSection() {
   const t = T[lang].download;
 
   return (
-    <section id="download" className="py-24 bg-white">
+    <section id="download" className="scroll-mt-20 py-24 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-14">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
@@ -802,7 +806,7 @@ function ForBusiness() {
   ];
 
   return (
-    <section id="for-business" className="py-24 bg-white">
+    <section id="for-business" className="scroll-mt-20 py-24 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <div
           className="rounded-3xl overflow-hidden grid lg:grid-cols-2"
@@ -872,18 +876,24 @@ function Contact() {
   const t = T[lang].contact;
   const [form, setForm] = useState({ name: '', email: '', company: '', message: '' });
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(false);
     try {
-      await fetch('/api/contact', {
+      const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
+      // Don't claim success if the request actually failed.
+      if (!res.ok) throw new Error('request failed');
       setSent(true);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -894,7 +904,7 @@ function Contact() {
   const labelClass = 'block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5';
 
   return (
-    <section id="contact" className="py-24 bg-slate-50">
+    <section id="contact" className="scroll-mt-20 py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-2xl mx-auto text-center mb-12">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
@@ -962,6 +972,11 @@ function Contact() {
               >
                 {loading ? t.sending : t.send}
               </button>
+              {error && (
+                <div className="flex items-center justify-center gap-2 text-sm text-red-600" role="alert">
+                  <X size={14} /> {t.errorP}
+                </div>
+              )}
               <p className="text-center text-xs text-slate-400">
                 {t.or}{' '}
                 <a href="mailto:hello@bumeet.es" className="text-brand-500 font-semibold hover:underline">
