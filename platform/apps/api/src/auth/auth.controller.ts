@@ -8,6 +8,7 @@ import {
   UseGuards,
   Res,
   Headers,
+  Logger,
   UnauthorizedException,
   NotFoundException,
 } from '@nestjs/common';
@@ -26,6 +27,8 @@ import { WebexService } from '../integrations/webex.service';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private auth: AuthService,
     private config: ConfigService,
@@ -47,7 +50,20 @@ export class AuthController {
     @Body() dto: { provider: string; email: string; name?: string },
   ) {
     const expected = this.config.get<string>('INTERNAL_AUTH_SECRET');
-    if (!expected || secret !== expected) {
+    // Same opaque 401 either way (don't leak which secret to a caller), but log
+    // the distinct cause so a misconfig is obvious in the API logs.
+    if (!expected) {
+      this.logger.error(
+        'oauth-login rejected: INTERNAL_AUTH_SECRET is not configured on the API. ' +
+          'Social login cannot work until it is set to the same value as the web app.',
+      );
+      throw new UnauthorizedException('oauth-login is a trusted server-to-server endpoint');
+    }
+    if (secret !== expected) {
+      this.logger.warn(
+        'oauth-login rejected: x-internal-secret did not match INTERNAL_AUTH_SECRET ' +
+          '(web/API value mismatch?).',
+      );
       throw new UnauthorizedException('oauth-login is a trusted server-to-server endpoint');
     }
     return this.auth.oauthLogin(dto);
