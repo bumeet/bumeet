@@ -4,24 +4,46 @@
 
 @layer base {
   :root {
+    /* Minimal & calm: white paper, softened ink, cool low-contrast neutrals. */
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 262 83% 64%;
-    --radius: 0.5rem;
+    --foreground: 222 22% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 12%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 258 100% 64%;
+    --radius: 0.625rem;
   }
 }
 
 @layer base {
-  * { border-color: hsl(240 5.9% 90%); }
-  body { @apply bg-white text-gray-900; }
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Tighter, balanced headings read calmer at large sizes. */
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: hsl(var(--ring) / 0.18);
+  }
 }
 
 .input {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+  @apply w-full px-3 py-2 border border-input rounded-lg text-sm bg-background placeholder:text-muted-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring;
 }
 
 /* Respect users who request reduced motion: disable the perpetual pulse/spin

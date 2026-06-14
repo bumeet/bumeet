@@ -5,6 +5,9 @@ import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -31,13 +34,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+    <Card className="rounded-2xl border-border p-8 shadow-lg animate-fade-up">
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-12 h-12 bg-brand-500 rounded-xl mb-4">
           <span className="text-white font-bold text-lg">B</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-        <p className="text-gray-500 mt-1 text-sm">Get started with BUMEET</p>
+        <h1 className="text-2xl font-bold text-foreground">Create account</h1>
+        <p className="text-muted-foreground mt-1 text-sm">Get started with BUMEET</p>
       </div>
 
       {error && (
@@ -52,12 +55,12 @@ export default function RegisterPage() {
           { label: 'Confirm password', key: 'confirm', type: 'password', placeholder: '••••••••' },
         ].map(({ label, key, type, placeholder }) => (
           <div key={key}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <input
+            <label htmlFor={key} className="block text-sm font-medium text-foreground mb-1">{label}</label>
+            <Input
+              id={key}
               type={type}
               value={form[key as keyof typeof form]}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               placeholder={placeholder}
               required
             />
@@ -66,23 +69,19 @@ export default function RegisterPage() {
         {form.password && (
           <div className="flex gap-1">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className={`h-1 flex-1 rounded-full ${form.password.length >= i * 2 ? 'bg-brand-500' : 'bg-gray-200'}`} />
+              <div key={i} className={`h-1 flex-1 rounded-full ${form.password.length >= i * 2 ? 'bg-brand-500' : 'bg-muted'}`} />
             ))}
           </div>
         )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-brand-500 hover:bg-brand-600 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
-        >
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'Creating account...' : 'Create account'}
-        </button>
+        </Button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 mt-6">
+      <p className="text-center text-sm text-muted-foreground mt-6">
         Already have an account?{' '}
-        <Link href="/login" className="text-brand-500 hover:text-brand-600 font-medium">Sign in</Link>
+        <Link href="/login" className="text-brand-600 hover:text-brand-700 font-medium">Sign in</Link>
       </p>
-    </div>
+    </Card>
   );
 }
