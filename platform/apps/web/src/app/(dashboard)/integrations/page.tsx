@@ -186,10 +186,10 @@ function IntegrationsInner() {
     }
   };
 
-  if (loading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="p-4 sm:p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       {banner === 'connected' && (
         <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 text-sm">
           <CheckCircle size={16} /> {PROVIDERS.find((p) => p.id === connectedProvider)?.name ?? 'Integration'} connected successfully.

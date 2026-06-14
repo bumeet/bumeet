@@ -79,17 +79,17 @@ export default function AccountPage() {
 
   if (!profile) {
     if (loadError) return (
-      <div className="p-8 max-w-2xl mx-auto">
+      <div className="p-4 sm:p-8 max-w-2xl mx-auto">
         <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
           <p className="text-sm text-red-600">Couldn&apos;t load your account. Please refresh the page.</p>
         </div>
       </div>
     );
-    return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+    return <div className="p-4 sm:p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-2xl mx-auto space-y-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Account</h1>
         <p className="text-gray-500 mt-1">Manage your profile and security settings.</p>

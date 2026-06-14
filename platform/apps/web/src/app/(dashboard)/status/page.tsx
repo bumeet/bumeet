@@ -40,10 +40,10 @@ export default function StatusPage() {
   const lastSync = integrations.filter((i) => i.lastSyncAt).sort((a, b) => new Date(b.lastSyncAt!).getTime() - new Date(a.lastSyncAt!).getTime())[0];
   const lastMessage = messages[0];
 
-  if (loading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <div className="p-4 sm:p-8 flex justify-center"><div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>;
 
   if (error) return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
         <p className="text-sm text-red-600">Couldn&apos;t load your status. Please try again.</p>
         <Button onClick={() => setReload((n) => n + 1)} size="sm" className="mt-3">
@@ -54,13 +54,13 @@ export default function StatusPage() {
   );
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">System Status</h1>
         <p className="text-gray-500 mt-1">Overview of your integrations, sync state, and display.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <StatusCard icon={Link2} iconClass="text-blue-500 bg-blue-50" title="Integrations" value={`${connected.length} / ${integrations.length}`} sub="connected" />
         <StatusCard icon={Activity} iconClass="text-green-500 bg-green-50" title="Events synced" value={totalEvents.toString()} sub="total across all providers" />
         <StatusCard icon={CheckCircle} iconClass="text-brand-500 bg-brand-50" title="Last sync" value={lastSync?.lastSyncAt ? formatDistanceToNow(new Date(lastSync.lastSyncAt), { addSuffix: true }) : '—'} sub={lastSync?.provider || 'no sync yet'} />
