@@ -56,10 +56,9 @@ jobs:
 
       - name: Run Prisma migrations
         run: |
-          export DATABASE_URL=$(az webapp config appsettings list \
-            --name ${{ env.APP_NAME }} \
-            --resource-group rg-bumeet-dev \
-            --query "[?name=='DATABASE_URL'].value" -o tsv)
+          export DATABASE_URL=$(az keyvault secret show \
+            --id "https://kv-bumeet-dev.vault.azure.net/secrets/DATABASE-URL/" \
+            --query value -o tsv)
           echo "DATABASE_URL length: ${#DATABASE_URL}"
           pnpm --filter api exec prisma migrate deploy
 
