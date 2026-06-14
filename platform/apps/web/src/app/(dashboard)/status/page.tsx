@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { CheckCircle, Link2, MessageSquare, Activity } from 'lucide-react';
+import { CheckCircle, Link2, MessageSquare, Activity, type LucideIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ export default function StatusPage() {
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
 
-  const token = (session as any)?.apiToken;
+  const token = session?.apiToken;
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
@@ -93,7 +93,7 @@ export default function StatusPage() {
   );
 }
 
-function StatusCard({ icon: Icon, iconClass, title, value, sub }: { icon: any; iconClass: string; title: string; value: string; sub: string }) {
+function StatusCard({ icon: Icon, iconClass, title, value, sub }: { icon: LucideIcon; iconClass: string; title: string; value: string; sub: string }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
       <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', iconClass)}>

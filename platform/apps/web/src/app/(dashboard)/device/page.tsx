@@ -53,7 +53,7 @@ function DevicePage() {
   const pairRef = useRef(pairCode);
   pairRef.current = pairCode;
 
-  const token = (session as any)?.apiToken as string | undefined;
+  const token = session?.apiToken;
 
   const macCmd = token
     ? `curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash -s -- --token ${token}`
