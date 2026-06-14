@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { Calendar, Link2, MessageSquare, Activity, User, LogOut, Bluetooth } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const nav = [
   { href: '/', label: 'Calendar', icon: Calendar },
@@ -20,7 +21,7 @@ export function Sidebar() {
   const { data: session } = useSession();
 
   return (
-    <aside className="w-60 bg-white border-r border-gray-200 flex flex-col h-full">
+    <aside className="w-60 bg-card border-r border-border flex flex-col h-full">
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
@@ -60,13 +61,15 @@ export function Sidebar() {
             <p className="text-xs text-gray-500 truncate">{session?.user?.email}</p>
           </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          className="w-full justify-start gap-2"
         >
           <LogOut size={14} />
           Sign out
-        </button>
+        </Button>
       </div>
     </aside>
   );
