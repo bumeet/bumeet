@@ -5,7 +5,9 @@ import { useSession, signOut } from 'next-auth/react';
 import { api } from '@/lib/api';
 import { Save, Trash2, Shield } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 type UserProfile = { id: string; email: string; name: string; avatarUrl?: string; timezone: string; language: string };
 type Session = { id: string; userAgent?: string; ipAddress?: string; createdAt: string; expiresAt: string };
@@ -94,14 +96,14 @@ export default function AccountPage() {
       </div>
 
       {/* Profile */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6">
+      <Card className="p-6">
         <h2 className="font-semibold text-gray-900 mb-4">Profile</h2>
         <div className="space-y-4">
           <Field label="Full name">
-            <input value={profile.name || ''} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className="input" />
+            <Input value={profile.name || ''} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
           </Field>
           <Field label="Email">
-            <input value={profile.email} disabled className="input opacity-60 cursor-not-allowed" />
+            <Input value={profile.email} disabled />
           </Field>
           <Field label="Timezone">
             <select value={profile.timezone} onChange={(e) => setProfile({ ...profile, timezone: e.target.value })} className="input">
@@ -114,28 +116,28 @@ export default function AccountPage() {
             </select>
           </Field>
           <div className="flex items-center gap-3 pt-2">
-            <button onClick={handleSaveProfile} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors">
+            <Button onClick={handleSaveProfile} disabled={saving} size="sm">
               <Save size={14} /> {saving ? 'Saving...' : 'Save changes'}
-            </button>
+            </Button>
             {saved && <span className="text-sm text-green-600">Saved!</span>}
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* Security */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6">
+      <Card className="p-6">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Shield size={16} /> Security</h2>
         <div className="space-y-3 mb-4">
           {[{ label: 'Current password', key: 'current' }, { label: 'New password', key: 'next' }, { label: 'Confirm new password', key: 'confirm' }].map(({ label, key }) => (
             <Field key={key} label={label}>
-              <input type="password" value={passwords[key as keyof typeof passwords]} onChange={(e) => setPasswords((p) => ({ ...p, [key]: e.target.value }))} className="input" />
+              <Input type="password" value={passwords[key as keyof typeof passwords]} onChange={(e) => setPasswords((p) => ({ ...p, [key]: e.target.value }))} />
             </Field>
           ))}
           {pwError && <p className="text-sm text-red-500">{pwError}</p>}
           {pwSaved && <p className="text-sm text-green-600">Password changed!</p>}
-          <button onClick={handleChangePassword} className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg transition-colors">
+          <Button onClick={handleChangePassword} variant="secondary" size="sm">
             Change password
-          </button>
+          </Button>
         </div>
 
         <div className="border-t border-gray-100 pt-4">
@@ -152,16 +154,16 @@ export default function AccountPage() {
             ))}
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* Danger zone */}
-      <section className="bg-white rounded-xl border border-red-200 p-6">
+      <Card className="p-6 border-red-200">
         <h2 className="font-semibold text-red-700 mb-2">Danger zone</h2>
         <p className="text-sm text-gray-500 mb-4">Once you delete your account, there is no going back.</p>
-        <button onClick={handleDeleteAccount} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
+        <Button onClick={handleDeleteAccount} variant="destructive" size="sm">
           <Trash2 size={14} /> Delete account
-        </button>
-      </section>
+        </Button>
+      </Card>
     </div>
   );
 }

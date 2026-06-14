@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 import { CheckCircle, Link2, MessageSquare, Activity, type LucideIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 type Integration = { id: string; provider: string; status: string; lastSyncAt: string | null; eventsImported: number };
 type Message = { id: string; content: string; status: string; createdAt: string };
@@ -44,12 +46,9 @@ export default function StatusPage() {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="bg-red-50 border border-red-100 rounded-xl p-6 text-center">
         <p className="text-sm text-red-600">Couldn&apos;t load your status. Please try again.</p>
-        <button
-          onClick={() => setReload((n) => n + 1)}
-          className="mt-3 px-4 py-2 text-sm rounded-lg bg-brand-500 text-white hover:bg-brand-600"
-        >
+        <Button onClick={() => setReload((n) => n + 1)} size="sm" className="mt-3">
           Retry
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -68,7 +67,7 @@ export default function StatusPage() {
         <StatusCard icon={MessageSquare} iconClass="text-purple-500 bg-purple-50" title="Last message" value={lastMessage ? lastMessage.status : '—'} sub={lastMessage ? lastMessage.content.slice(0, 40) : 'no messages sent'} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <Card className="p-6">
         <h2 className="font-semibold text-gray-900 mb-4">Integrations detail</h2>
         {integrations.length === 0 ? (
           <p className="text-sm text-gray-500">No integrations connected yet.</p>
@@ -88,14 +87,14 @@ export default function StatusPage() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
 
 function StatusCard({ icon: Icon, iconClass, title, value, sub }: { icon: LucideIcon; iconClass: string; title: string; value: string; sub: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+    <Card className="p-5 flex items-center gap-4">
       <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', iconClass)}>
         <Icon size={18} />
       </div>
@@ -104,6 +103,6 @@ function StatusCard({ icon: Icon, iconClass, title, value, sub }: { icon: Lucide
         <p className="text-xl font-bold text-gray-900">{value}</p>
         <p className="text-xs text-gray-400 truncate max-w-48">{sub}</p>
       </div>
-    </div>
+    </Card>
   );
 }
