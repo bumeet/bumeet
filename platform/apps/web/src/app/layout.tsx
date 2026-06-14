@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { CookieBanner } from '@/components/CookieBanner';
+
+// Single, calm typeface across both the corporate site and the dashboard.
+// Exposed as a CSS variable so Tailwind's `font-sans` resolves to it.
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'BUMEET — Pantalla e-ink para puerta que detecta tus reuniones',
@@ -19,8 +28,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body>
+    <html lang="es" className={inter.variable}>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
         <CookieBanner />
       </body>

@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const OAUTH_PROVIDERS = [
   {
@@ -86,33 +89,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+    <Card className="rounded-2xl border-border p-8 shadow-lg animate-fade-up">
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-12 h-12 bg-brand-500 rounded-xl mb-4">
           <span className="text-white font-bold text-lg">B</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-        <p className="text-gray-500 mt-1 text-sm">Sign in to your BUMEET account</p>
+        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+        <p className="text-muted-foreground mt-1 text-sm">Sign in to your BUMEET account</p>
       </div>
 
       {/* OAuth buttons */}
       <div className="space-y-2 mb-6">
         {OAUTH_PROVIDERS.map((p) => (
-          <button
+          <Button
             key={p.id}
+            type="button"
+            variant="outline"
             onClick={() => handleOAuth(p.id)}
             disabled={!!oauthLoading}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="w-full"
           >
             {p.icon}
             {oauthLoading === p.id ? 'Redirecting...' : `Continue with ${p.name}`}
-          </button>
+          </Button>
         ))}
       </div>
 
       <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-        <div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">or sign in with email</span></div>
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+        <div className="relative flex justify-center text-xs text-muted-foreground"><span className="bg-background px-2">or sign in with email</span></div>
       </div>
 
       {error && (
@@ -121,53 +126,51 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <input
+          <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">Email</label>
+          <Input
+            id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             placeholder="you@example.com"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-          <input
+          <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">Password</label>
+          <Input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             placeholder="••••••••"
             required
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-brand-500 hover:bg-brand-600 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
-        >
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? 'Signing in...' : 'Sign in'}
-        </button>
+        </Button>
       </form>
 
       <div className="mt-4">
         <div className="relative">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-          <div className="relative flex justify-center text-xs text-gray-500"><span className="bg-white px-2">or</span></div>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-xs text-muted-foreground"><span className="bg-background px-2">or</span></div>
         </div>
-        <button
+        <Button
+          type="button"
+          variant="outline"
           onClick={handleDemo}
-          className="mt-3 w-full border border-brand-500 text-brand-500 hover:bg-brand-50 font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
+          className="mt-3 w-full border-brand-500 text-brand-600 hover:bg-brand-50 hover:text-brand-700"
         >
           Try demo account
-        </button>
+        </Button>
       </div>
 
-      <p className="text-center text-sm text-gray-500 mt-6">
+      <p className="text-center text-sm text-muted-foreground mt-6">
         Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-brand-500 hover:text-brand-600 font-medium">Sign up</Link>
+        <Link href="/register" className="text-brand-600 hover:text-brand-700 font-medium">Sign up</Link>
       </p>
-    </div>
+    </Card>
   );
 }
