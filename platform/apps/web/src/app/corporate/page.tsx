@@ -297,7 +297,7 @@ function Nav() {
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <span className="text-xl font-black tracking-tight text-slate-900">
+        <span className="text-xl font-bold tracking-tight text-slate-900">
           BU<span className="text-brand-500">MEET</span>
         </span>
 
@@ -325,7 +325,7 @@ function Nav() {
           </a>
           <a
             href="#contact"
-            className="px-5 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm shadow-brand-100"
+            className="px-5 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"
           >
             {t.demo}
           </a>
@@ -369,7 +369,7 @@ function EinkDevice() {
       <div className="relative" style={{ width: 148, height: 180 }}>
         {/* Outer casing */}
         <div
-          className="absolute inset-0 rounded-2xl shadow-2xl"
+          className="absolute inset-0 rounded-2xl shadow-xl"
           style={{ background: 'linear-gradient(160deg, #2a2a2a 0%, #171717 100%)' }}
         />
         {/* Screen bezel */}
@@ -386,13 +386,13 @@ function EinkDevice() {
             {busy ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-2 px-2">
                 <span className="text-[8px] text-slate-500 font-semibold tracking-[0.2em] uppercase">{t.inMeeting}</span>
-                <span className="text-[#e8e4d8] font-black text-xl tracking-widest">{t.busy.toUpperCase()}</span>
+                <span className="text-[#e8e4d8] font-bold text-xl tracking-widest">{t.busy.toUpperCase()}</span>
                 <div className="w-8 h-px bg-slate-700 my-0.5" />
                 <span className="text-[7px] text-slate-500">{t.ends}</span>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-1.5">
-                <span className="text-slate-800 font-black text-sm tracking-[0.25em]">{t.available.toUpperCase()}</span>
+                <span className="text-slate-800 font-bold text-sm tracking-[0.25em]">{t.available.toUpperCase()}</span>
                 <span className="text-[7px] text-slate-500 tracking-wider">{t.comeIn}</span>
               </div>
             )}
@@ -411,7 +411,7 @@ function EinkDevice() {
         ))}
         {/* Logo */}
         <div className="absolute bottom-2.5 left-0 right-0 text-center">
-          <span className="text-slate-600 font-black" style={{ fontSize: 6, letterSpacing: 3 }}>BUMEET</span>
+          <span className="text-slate-600 font-bold" style={{ fontSize: 6, letterSpacing: 3 }}>BUMEET</span>
         </div>
       </div>
 
@@ -453,7 +453,7 @@ function Hero() {
             {t.badge}
           </div>
 
-          <h1 className="text-5xl lg:text-[3.75rem] font-black leading-[1.06] tracking-tight text-slate-900">
+          <h1 className="text-5xl lg:text-[3.75rem] font-bold leading-[1.06] tracking-tight text-slate-900">
             {t.h1a}{' '}
             <span className="relative inline-block">
               <span className="relative z-10 text-brand-500">{t.h1b}</span>
@@ -467,14 +467,14 @@ function Hero() {
           <div className="mt-10 flex flex-wrap gap-4">
             <a
               href="#contact"
-              className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-all shadow-lg shadow-brand-100 hover:shadow-brand-200"
+              className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-all shadow-sm"
             >
               {t.cta1}
               <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
             </a>
             <a
               href="#download"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 transition-all"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 transition-all"
             >
               {t.cta2}
             </a>
@@ -498,7 +498,7 @@ function Hero() {
           <div className="relative">
             {/* Door frame */}
             <div
-              className="relative rounded-2xl border-8 border-slate-200 shadow-2xl"
+              className="relative rounded-2xl border-8 border-slate-200 shadow-xl"
               style={{
                 width: 280,
                 height: 360,
@@ -641,7 +641,7 @@ function ValueProps() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
             {t.h2a}<br />{t.h2b}
           </h2>
           <p className="mt-4 text-slate-500 text-lg max-w-xl mx-auto">{t.sub}</p>
@@ -650,13 +650,13 @@ function ValueProps() {
           {t.props.map(({ tag, title, desc }, i) => (
             <div
               key={tag}
-              className="group relative p-8 rounded-2xl border border-slate-100 hover:border-brand-200 hover:shadow-xl hover:shadow-brand-50 transition-all duration-300 bg-white"
+              className="group relative p-8 rounded-2xl border border-slate-100 hover:border-brand-200 hover:shadow-lg transition-all duration-300 bg-white"
             >
               <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-500 flex items-center justify-center mb-6 group-hover:bg-brand-500 group-hover:text-white transition-colors duration-300">
                 {icons[i]}
               </div>
               <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-2">{tag}</p>
-              <h3 className="text-lg font-black text-slate-900 mb-3 leading-snug">{title}</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-3 leading-snug">{title}</h3>
               <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
             </div>
           ))}
@@ -681,7 +681,7 @@ function HowItWorks() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">{t.h2}</h2>
+          <h2 className="text-4xl font-bold text-slate-900 tracking-tight">{t.h2}</h2>
         </div>
         <div className="relative grid md:grid-cols-3 gap-8">
           {/* Connector line */}
@@ -690,14 +690,14 @@ function HowItWorks() {
             <div key={title} className="relative bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start gap-4 mb-5">
                 <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl bg-brand-500 text-white flex items-center justify-center shadow-lg shadow-brand-100">
+                  <div className="w-12 h-12 rounded-xl bg-brand-500 text-white flex items-center justify-center shadow-sm">
                     {icons[i]}
                   </div>
-                  <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-slate-900 text-white text-[9px] font-black flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-slate-900 text-white text-[9px] font-bold flex items-center justify-center">
                     {i + 1}
                   </span>
                 </div>
-                <h3 className="text-lg font-black text-slate-900 pt-2">{title}</h3>
+                <h3 className="text-lg font-bold text-slate-900 pt-2">{title}</h3>
               </div>
               <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
             </div>
@@ -754,7 +754,7 @@ function DownloadSection() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-14">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">{t.h2}</h2>
+          <h2 className="text-4xl font-bold text-slate-900 tracking-tight">{t.h2}</h2>
           <p className="mt-4 text-slate-500 text-lg max-w-xl mx-auto">{t.sub}</p>
         </div>
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -762,13 +762,13 @@ function DownloadSection() {
             <a
               key={os}
               href={href}
-              className="group flex flex-col items-center gap-5 p-8 rounded-2xl border-2 border-slate-100 hover:border-brand-400 hover:shadow-xl hover:shadow-brand-50 transition-all duration-200 text-center"
+              className="group flex flex-col items-center gap-5 p-8 rounded-2xl border border-slate-100 hover:border-brand-400 hover:shadow-lg transition-all duration-200 text-center"
             >
               <div className="w-16 h-16 rounded-2xl bg-slate-50 group-hover:bg-brand-50 text-slate-400 group-hover:text-brand-500 flex items-center justify-center transition-colors duration-200">
                 {icon}
               </div>
               <div>
-                <div className="text-lg font-black text-slate-900">{os}</div>
+                <div className="text-lg font-bold text-slate-900">{os}</div>
                 <div className="text-sm text-slate-400 mt-1">{sub}</div>
               </div>
               <div className="mt-auto w-full py-2.5 rounded-xl bg-slate-900 group-hover:bg-brand-500 text-white text-sm font-bold transition-colors duration-200 flex items-center justify-center gap-2">
@@ -817,7 +817,7 @@ function ForBusiness() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-300 text-xs font-bold mb-8 w-fit">
               <Building2 size={12} />{t.badge}
             </div>
-            <h2 className="text-4xl font-black text-white tracking-tight leading-tight">
+            <h2 className="text-4xl font-bold text-white tracking-tight leading-tight">
               {t.h2a}<br />
               <span className="text-brand-400">{t.h2b}</span>
             </h2>
@@ -836,7 +836,7 @@ function ForBusiness() {
             <div className="mt-10 flex flex-wrap gap-4">
               <a
                 href="#contact"
-                className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-400 transition-colors shadow-lg shadow-brand-500/30"
+                className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-400 transition-colors shadow-sm"
               >
                 {t.cta1}
                 <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
@@ -858,7 +858,7 @@ function ForBusiness() {
                   {statIcons[i]}
                 </div>
                 <div>
-                  <div className="text-3xl font-black text-white">{stat}</div>
+                  <div className="text-3xl font-bold text-white">{stat}</div>
                   <div className="text-sm text-slate-400 mt-0.5">{label}</div>
                 </div>
               </div>
@@ -908,7 +908,7 @@ function Contact() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-2xl mx-auto text-center mb-12">
           <p className="text-xs font-bold text-brand-500 tracking-widest uppercase mb-3">{t.label}</p>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">{t.h2}</h2>
+          <h2 className="text-4xl font-bold text-slate-900 tracking-tight">{t.h2}</h2>
           <p className="mt-4 text-slate-500 text-lg">{t.sub}</p>
         </div>
         <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
@@ -917,7 +917,7 @@ function Contact() {
               <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
                 <Check size={24} className="text-emerald-500" strokeWidth={3} />
               </div>
-              <h3 className="text-xl font-black text-slate-900">{t.successH}</h3>
+              <h3 className="text-xl font-bold text-slate-900">{t.successH}</h3>
               <p className="text-slate-500 text-sm">{t.successP}</p>
             </div>
           ) : (
@@ -968,7 +968,7 @@ function Contact() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-colors shadow-md shadow-brand-100 disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-brand-500 text-white font-bold text-sm hover:bg-brand-600 transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {loading ? t.sending : t.send}
               </button>
@@ -1002,7 +1002,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-slate-800">
           <div>
-            <span className="text-xl font-black text-white">
+            <span className="text-xl font-bold text-white">
               BU<span className="text-brand-400">MEET</span>
             </span>
             <p className="text-xs mt-1.5 text-slate-500">{t.tagline}</p>
