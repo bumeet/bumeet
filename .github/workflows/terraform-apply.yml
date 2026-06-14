@@ -1,10 +1,14 @@
 name: "Terraform Apply"
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "infra/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to apply (dev or prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, prod]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
