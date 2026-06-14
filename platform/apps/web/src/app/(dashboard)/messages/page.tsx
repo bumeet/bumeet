@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, Battery, BatteryLow, BatteryMedium, BatteryFull, BatteryCharging, Pin, X, type LucideIcon } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, BatteryLow, BatteryMedium, BatteryFull, Pin, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
