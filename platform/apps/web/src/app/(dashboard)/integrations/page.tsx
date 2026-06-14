@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { useBusyStatus, type CalendarStatus } from '@/lib/useBusyStatus';
 import { RefreshCw, Unlink, Link2, CheckCircle, AlertCircle, Clock, Plus, Radio } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 type Integration = {
   id: string;
@@ -214,7 +217,7 @@ function IntegrationsInner() {
           const canAdd = accounts.length < MAX_ACCOUNTS;
 
           return (
-            <div key={provider.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <Card key={provider.id} className="overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{provider.emoji}</span>
@@ -226,15 +229,15 @@ function IntegrationsInner() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">{accounts.length}/{MAX_ACCOUNTS}</span>
                   {canAdd && (
-                    <button
+                    <Button
                       onClick={() => handleConnect(provider.id)}
                       disabled={connecting === provider.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                      size="sm"
                     >
                       {accounts.length === 0
                         ? <><Link2 size={12} /> {connecting === provider.id ? 'Connecting...' : 'Connect'}</>
                         : <><Plus size={12} /> {connecting === provider.id ? 'Connecting...' : 'Add account'}</>}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -263,13 +266,9 @@ function IntegrationsInner() {
                                 {integration.label ?? integration.id.slice(0, 8)}
                               </span>
                               {isError ? (
-                                <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-                                  <AlertCircle size={10} /> Error
-                                </span>
+                                <Badge variant="danger"><AlertCircle size={10} /> Error</Badge>
                               ) : (
-                                <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                                  <CheckCircle size={10} /> Active
-                                </span>
+                                <Badge variant="success"><CheckCircle size={10} /> Active</Badge>
                               )}
                               {/* Calendar in-meeting indicator */}
                               {inMeeting && (
@@ -343,21 +342,24 @@ function IntegrationsInner() {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <button
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleSync(integration)}
                               disabled={syncing === integration.id}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                             >
                               <RefreshCw size={12} className={syncing === integration.id ? 'animate-spin' : ''} />
                               Sync
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleDisconnect(integration)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                             >
                               <Unlink size={12} />
                               Disconnect
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </li>
@@ -365,7 +367,7 @@ function IntegrationsInner() {
                   })}
                 </ul>
               )}
-            </div>
+            </Card>
           );
         })}
       </div>

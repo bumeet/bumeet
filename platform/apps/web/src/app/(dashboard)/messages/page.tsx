@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 import { Send, CheckCircle, AlertCircle, Clock, Loader2, Zap, BatteryLow, BatteryMedium, BatteryFull, Pin, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -483,7 +485,7 @@ export default function MessagesPage() {
 
           {/* ── Left: Device preview ── */}
           <div className="col-span-1 md:col-span-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col items-center gap-2 md:sticky md:top-6">
+            <Card className="rounded-2xl p-6 flex flex-col items-center gap-2 md:sticky md:top-6">
               <div className="flex items-center justify-between mb-4 w-full">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -517,14 +519,14 @@ export default function MessagesPage() {
                   <span className="text-gray-400 ml-1">· live</span>
                 </div>
               )}
-            </div>
+            </Card>
           </div>
 
           {/* ── Right: Compose + History ── */}
           <div className="col-span-1 md:col-span-8 flex flex-col gap-6">
 
             {/* Compose card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <Card className="rounded-2xl p-6">
               <h2 className="font-semibold text-gray-900 mb-5">Send message</h2>
 
               {/* Quick templates */}
@@ -613,18 +615,19 @@ export default function MessagesPage() {
                 </div>
               )}
 
-              <button
+              <Button
                 onClick={handleSend}
                 disabled={!content.trim() || sending}
-                className="mt-4 w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-sm"
+                size="lg"
+                className="mt-4 w-full"
               >
                 {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                 {sending ? 'Sending…' : 'Send to Display'}
-              </button>
-            </div>
+              </Button>
+            </Card>
 
             {/* History card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <Card className="rounded-2xl p-6">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-semibold text-gray-900">Message history</h2>
                 <span className="text-xs text-gray-400">{messages.length} messages</span>
@@ -715,13 +718,15 @@ export default function MessagesPage() {
                         {/* Right: cancel button for permanent, status + time */}
                         <div className="flex-shrink-0 flex items-center gap-2">
                           {msg.permanent && !isCancelled && (
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleCancel(msg.id)}
                               title="Cancel permanent message"
-                              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+                              className="gap-1 text-gray-400 hover:text-red-500 hover:bg-red-50"
                             >
                               <X size={12} /> Cancel
-                            </button>
+                            </Button>
                           )}
                           <div className="text-right">
                             <span className={cn(
@@ -739,7 +744,7 @@ export default function MessagesPage() {
                   })}
                 </div>
               )}
-            </div>
+            </Card>
 
           </div>
         </div>
