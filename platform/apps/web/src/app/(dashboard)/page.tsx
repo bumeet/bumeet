@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 type CalendarEvent = {
   id: string;
@@ -100,9 +101,9 @@ export default function CalendarPage() {
               <button onClick={() => navigate(1)} aria-label="Next period" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <ChevronRight size={16} className="text-gray-600" />
               </button>
-              <button onClick={() => setCurrentDate(new Date())} className="ml-2 px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="ml-2">
                 Today
-              </button>
+              </Button>
             </div>
           </div>
 
