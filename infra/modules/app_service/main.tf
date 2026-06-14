@@ -23,8 +23,12 @@ resource "azurerm_linux_web_app" "this" {
     always_on     = var.always_on
     http2_enabled = true
 
+    # Use managed identity to pull from ACR — no stored credentials needed.
+    container_registry_use_managed_identity = true
+
     application_stack {
-      node_version = var.node_version
+      docker_image_name   = "${var.container_registry_server}/${var.docker_image_name}"
+      docker_registry_url = "https://${var.container_registry_server}"
     }
 
     health_check_path = "/api/v1/health"
@@ -32,12 +36,19 @@ resource "azurerm_linux_web_app" "this" {
 
   app_settings = merge(
     {
-      WEBSITES_PORT                  = "8080"
-      SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
-      WEBSITE_NODE_DEFAULT_VERSION   = "~20"
+      WEBSITES_PORT = "8080"
     },
     var.app_settings,
   )
 
   tags = var.tags
+
+  # The CI pipeline (azure/webapps-deploy) updates docker_image_name on every
+  # release. Ignore it here so `terraform apply` doesn't revert to the
+  # baseline tag and take down the API.
+  lifecycle {
+    ignore_changes = [
+      site_config[0].application_stack[0].docker_image_name,
+    ]
+  }
 }
