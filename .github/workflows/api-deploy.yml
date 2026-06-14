@@ -59,12 +59,8 @@ jobs:
           export RAW_URL=$(az keyvault secret show \
             --id "https://kv-bumeet-dev.vault.azure.net/secrets/DATABASE-URL/" \
             --query value -o tsv)
-          # Re-encode password: Azure PG passwords often have @, : etc that break URL parsing
-          export DATABASE_URL=$(node -e "
-            const u = new URL(process.env.RAW_URL);
-            u.password = encodeURIComponent(decodeURIComponent(u.password));
-            process.stdout.write(u.toString());
-          ")
+          export DATABASE_URL=$(python3 -c \
+            "import os,sys;from urllib.parse import quote;u=os.environ['RAW_URL'];p,r=u.split('://',1);a=r.rfind('@');c,h=r[:a],r[a+1:];i=c.index(':');usr,pw=c[:i],c[i+1:];sys.stdout.write(p+'://'+usr+':'+quote(pw)+'@'+h)")
           echo "DATABASE_URL length: ${#DATABASE_URL}"
           pnpm --filter api exec prisma migrate deploy
 
