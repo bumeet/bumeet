@@ -16,6 +16,17 @@ async function bootstrap() {
   // Refuse to start without a real JWT secret — no 'fallback-secret' default anywhere.
   requireEnv('JWT_SECRET', 32);
 
+  // Social login (web → POST /auth/oauth-login) is gated by this shared secret.
+  // If it's unset the endpoint rejects every request, so OAuth users never get
+  // an API token and the dashboard shows "Not authenticated". Warn loudly at
+  // boot instead of failing silently at runtime.
+  if (!process.env.INTERNAL_AUTH_SECRET) {
+    console.warn(
+      '[startup] WARNING: INTERNAL_AUTH_SECRET is not set — /auth/oauth-login will reject ' +
+        'every request and social login will not work. Set it to the same value as the web app.',
+    );
+  }
+
   const app = await NestFactory.create(AppModule);
 
   app.use(helmet());
