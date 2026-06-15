@@ -71,9 +71,6 @@ export class IntegrationsService implements OnModuleInit {
     const msIntegrations     = integrations.filter((i) => i.provider === 'microsoft');
     const zoomIntegrations   = integrations.filter((i) => i.provider === 'zoom');
     const webexIntegrations  = integrations.filter((i) => i.provider === 'webex');
-    const hasPresence =
-      slackIntegrations.length + teamsIntegrations.length + msIntegrations.length +
-      zoomIntegrations.length + webexIntegrations.length > 0;
 
     // Fetch mic status and all remote checks in parallel
     const [userRow, calendarResult, ...presenceResults] = await Promise.allSettled([
@@ -161,18 +158,6 @@ export class IntegrationsService implements OnModuleInit {
         webex: 'Webex',
       };
       const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
-
-      // S-02: Presence signals Available while calendar says BUSY (e.g. Teams/Slack show free)
-      if (!cal.upcoming) {
-        const presenceAllFree = hasPresence && presenceResults.every((r) => {
-          if (r.status !== 'fulfilled') return true;
-          const v = r.value as any;
-          return !v?.inCall && !['Busy', 'DoNotDisturb'].includes(v?.availability ?? '');
-        });
-        if (presenceAllFree) {
-          return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
-        }
-      }
 
       // S-01: Upcoming meeting (starts within next 5 min)
       if (cal.upcoming && cal.startAt) {
