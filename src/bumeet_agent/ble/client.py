@@ -107,7 +107,9 @@ class BleClient:
                         logger.debug("BLE reconnect sync sent")
                     self._connected_event.set()
                 except Exception as exc:
-                    logger.debug("Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S)
+                    logger.debug(
+                        "Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S
+                    )
                     await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                     continue
             else:
@@ -126,8 +128,9 @@ class BleClient:
                         self._last_write_time = loop.time()
                         logger.debug("BLE keepalive sent")
                     except Exception as exc:
-                        logger.debug("Keepalive failed: %s — reconnect in %.0fs",
-                                     exc, _RECONNECT_INTERVAL_S)
+                        logger.debug(
+                            "Keepalive failed: %s — reconnect in %.0fs", exc, _RECONNECT_INTERVAL_S
+                        )
                         await self.disconnect()
                         await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                         continue
@@ -174,9 +177,7 @@ class BleClient:
                 await self.disconnect()
                 if attempt == 0:
                     try:
-                        await asyncio.wait_for(
-                            self._connected_event.wait(), timeout=_WRITE_WAIT_S
-                        )
+                        await asyncio.wait_for(self._connected_event.wait(), timeout=_WRITE_WAIT_S)
                     except TimeoutError:
                         break
 

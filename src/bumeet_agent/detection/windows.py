@@ -25,9 +25,7 @@ from bumeet_agent.logging import get_logger
 
 logger = get_logger(__name__)
 
-_CONSENT_STORE = (
-    r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore"
-)
+_CONSENT_STORE = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore"
 
 
 def _scan_consent_key(key: Any) -> bool:

@@ -79,9 +79,11 @@ class AgentOrchestrator:
         # on the single GATT connection. BleClient owns the authoritative payload.
         self._send_lock = asyncio.Lock()
 
-    _HEARTBEAT_INTERVAL_S: int = 5 * 60   # resend current state every 5 min
-    _MAX_AUTH_BACKOFF_S: float = 300.0    # cap exponential backoff on repeated 401s
-    _API_STALENESS_S: float = 15 * 60.0  # treat cached API data as stale after 15 min without a successful poll
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _MAX_AUTH_BACKOFF_S: float = 300.0  # cap exponential backoff on repeated 401s
+    _API_STALENESS_S: float = (
+        15 * 60.0
+    )  # treat cached API data as stale after 15 min without a successful poll
 
     @staticmethod
     def _log_send_exc(task: asyncio.Task[None]) -> None:
@@ -192,7 +194,9 @@ class AgentOrchestrator:
         elif effective_api and (effective_api.get("busy") or effective_api.get("upcoming")):
             # payload field from live-status is the ready-to-send string
             # (e.g. "BUSY · Slack", "UPCOMING · Google Calendar · starts 14:30")
-            raw: str = effective_api.get("payload") or ("BUSY" if effective_api.get("busy") else "FREE")
+            raw: str = effective_api.get("payload") or (
+                "BUSY" if effective_api.get("busy") else "FREE"
+            )
             payload = raw.encode("utf-8")
         else:
             payload = b"FREE"
