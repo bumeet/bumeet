@@ -24,6 +24,19 @@ from bumeet_agent.simulation import run_simulation_session
 
 logger = get_logger(__name__)
 
+# Lifecycle/state events worth surfacing at INFO; everything else (e.g. the ~2 s
+# detection.updated polls) stays at DEBUG to keep the log readable.
+_INFO_LOG_TOPICS = frozenset(
+    {
+        EventTopic.APP_STARTED.value,
+        EventTopic.BLE_CONNECTED.value,
+        EventTopic.BLE_DISCONNECTED.value,
+        EventTopic.BLE_ERROR.value,
+        EventTopic.BLE_PAYLOAD_SENT.value,
+        EventTopic.OCCUPANCY_CHANGED.value,
+    }
+)
+
 
 def _build_detector(poll_interval: float) -> HardwareDetector:
     """Return the platform-appropriate hardware detector."""
@@ -185,8 +198,10 @@ async def run(
     container = build_container(config_path, settings_override=settings)
 
     async def _log_container_event(event: AgentEvent) -> None:
-        # Payloads can carry meeting details (PII) and live-status — DEBUG only.
-        logger.debug("event=%s payload=%s", event.topic, event.payload)
+        if event.topic in _INFO_LOG_TOPICS:
+            logger.info("event=%s payload=%s", event.topic, event.payload)
+        else:
+            logger.debug("event=%s payload=%s", event.topic, event.payload)
 
     await container.event_bus.subscribe("*", _log_container_event)
     await container.event_bus.emit(
@@ -275,6 +290,7 @@ def main() -> int:
     configure_logging()
     if args.simulate_ui:
         from bumeet_agent.ui.simulator import launch_simulation_viewer  # noqa: PLC0415
+
         launch_simulation_viewer()
         return 0
 

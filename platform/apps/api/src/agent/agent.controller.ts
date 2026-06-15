@@ -54,31 +54,4 @@ export class AgentController {
     const user = await this.resolveUser(key);
     return this.integrations.getLiveStatus(user.id);
   }
-
-  /** Temporary debug endpoint — returns raw calendar/mic/integration state. */
-  @Get('debug')
-  async debug(@Headers('x-agent-key') key: string) {
-    const user = await this.resolveUser(key);
-    const now = new Date();
-    const lookahead = new Date(now.getTime() + 5 * 60 * 1000);
-
-    const [integrations, events, userRow] = await Promise.all([
-      this.prisma.integrationAccount.findMany({
-        where: { userId: user.id },
-        select: { id: true, provider: true, status: true, lastSyncAt: true, eventsImported: true, errorMessage: true },
-      }),
-      this.prisma.calendarEvent.findMany({
-        where: { userId: user.id, startAt: { lte: lookahead }, endAt: { gt: now } },
-        select: { title: true, startAt: true, endAt: true, allDay: true, status: true },
-        orderBy: { startAt: 'asc' },
-        take: 10,
-      }),
-      this.prisma.user.findUnique({
-        where: { id: user.id },
-        select: { micActive: true, micUpdatedAt: true },
-      }),
-    ]);
-
-    return { now: now.toISOString(), integrations, eventsAroundNow: events, mic: userRow };
-  }
 }

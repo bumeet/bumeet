@@ -53,7 +53,7 @@ class BleClient:
         # Set to wake the connection loop early (e.g. on a disconnect) instead of
         # busy-polling once per second.
         self._wake = asyncio.Event()
-        self._last_payload: bytes = b"FREE"
+        self._last_payload: bytes = b""  # empty until first successful write
         # Monotonic time of the last successful GATT write (keepalive or real).
         # Shared across both paths so keepalive backs off after a real write.
         self._last_write_time: float = 0.0
@@ -92,20 +92,24 @@ class BleClient:
                 self._connected_event.clear()
                 try:
                     await self.connect()
-                    # Re-send current state immediately after reconnect so the
-                    # e-ink display is always in sync even after a firmware reboot.
-                    # Acknowledged write so the resync is reliable.
+                    # Re-send current state after reconnect so the e-ink display is
+                    # always in sync after a firmware reboot or BLE dropout.
+                    # Skip on first connect (empty payload) so the API poll's
+                    # write_now (waiting on _connected_event) is the first write.
                     assert self._client is not None
-                    await self._client.write_gatt_char(
-                        self._settings.characteristic_uuid,
-                        self._last_payload,
-                        response=self._settings.write_with_response,
-                    )
-                    self._last_write_time = loop.time()
+                    if self._last_payload:
+                        await self._client.write_gatt_char(
+                            self._settings.characteristic_uuid,
+                            self._last_payload,
+                            response=self._settings.write_with_response,
+                        )
+                        self._last_write_time = loop.time()
+                        logger.debug("BLE reconnect sync sent")
                     self._connected_event.set()
-                    logger.debug("BLE reconnect sync sent")
                 except Exception as exc:
-                    logger.debug("Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S)
+                    logger.debug(
+                        "Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S
+                    )
                     await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                     continue
             else:
@@ -124,8 +128,9 @@ class BleClient:
                         self._last_write_time = loop.time()
                         logger.debug("BLE keepalive sent")
                     except Exception as exc:
-                        logger.debug("Keepalive failed: %s — reconnect in %.0fs",
-                                     exc, _RECONNECT_INTERVAL_S)
+                        logger.debug(
+                            "Keepalive failed: %s — reconnect in %.0fs", exc, _RECONNECT_INTERVAL_S
+                        )
                         await self.disconnect()
                         await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                         continue
@@ -172,9 +177,7 @@ class BleClient:
                 await self.disconnect()
                 if attempt == 0:
                     try:
-                        await asyncio.wait_for(
-                            self._connected_event.wait(), timeout=_WRITE_WAIT_S
-                        )
+                        await asyncio.wait_for(self._connected_event.wait(), timeout=_WRITE_WAIT_S)
                     except TimeoutError:
                         break
 
@@ -192,7 +195,8 @@ class BleClient:
 
     async def resend_last(self) -> None:
         """Re-send the last successfully written payload (used by the heartbeat)."""
-        await self.write_now(self._last_payload)
+        if self._last_payload:
+            await self.write_now(self._last_payload)
 
     # ── Low-level connection management ──────────────────────────────────────
 

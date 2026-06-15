@@ -113,7 +113,13 @@ export class IntegrationsService implements OnModuleInit {
       }
     };
 
-    // Priority 1: any inCall (Slack / Teams / Microsoft / Zoom / Webex)
+    // Presence model: BUSY requires a REAL signal that you are in a meeting —
+    // an app reporting an active call, or your mic/camera actually in use. A bare
+    // calendar event is NOT proof you joined (you may skip it, decline silently,
+    // or keep it as a placeholder), so it can only ever surface UPCOMING.
+
+    // Priority 1: an app reports you are literally in a call
+    // (Slack huddle / Teams / Zoom / Webex inCall).
     for (const r of presenceResults) {
       if (r.status === 'fulfilled') {
         const v = r.value as any;
@@ -123,44 +129,32 @@ export class IntegrationsService implements OnModuleInit {
         }
       }
     }
+    // NOTE: Teams "Busy" availability is intentionally NOT treated as BUSY. Teams
+    // derives it from the calendar (it flips to Busy a few minutes before a meeting,
+    // whether or not you join), so it carries the same "scheduled ≠ joined" false
+    // positive as a raw calendar event. Only Teams `inCall` (caught above) counts.
 
-    // Priority 2: Teams/Microsoft Busy (Zoom/Webex inCall already caught above)
-    // Skip if calendar shows the event is still upcoming — Teams pre-sets presence to Busy
-    // a few minutes before meetings start, which would mask the UPCOMING state.
-    // DoNotDisturb is intentionally excluded — it's a manual focus state, not an active meeting.
-    const calIsUpcoming = calendarResult.status === 'fulfilled' && calendarResult.value.upcoming;
-    if (!calIsUpcoming) {
-      for (const r of presenceResults) {
-        if (r.status === 'fulfilled') {
-          const v = r.value as any;
-          if (v?.availability === 'Busy') {
-            const src = providerLabel(v._provider);
-            return { busy: true, upcoming: false, payload: `BUSY · ${src}`, source: src, endAt: null };
-          }
-        }
-      }
-    }
-
-    // Priority 3: Microphone in use (desktop agent, any app — Google Meet, Zoom, FaceTime…)
-    // This resolves early-meeting-end: when the user hangs up, the mic is released immediately,
-    // even if the calendar event still has time remaining.
+    // Priority 2: microphone in use (desktop agent — any app: Meet, Zoom, FaceTime…).
+    // Stays true even when software-muted, so it confirms you actually joined the call
+    // rather than that you are speaking. Released the moment you hang up.
     if (micActive) {
       return { busy: true, upcoming: false, payload: 'BUSY · Call', source: 'Mic', endAt: null };
     }
+    // (Camera-in-use is detected locally by the desktop agent, which renders BUSY
+    // directly over BLE — hardware always wins over this API fallback.)
 
-    // Priority 4: Calendar event
-    if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
+    // Priority 3: calendar — heads-up ONLY. A scheduled event never makes you BUSY
+    // on its own; surface UPCOMING in the 5-min pre-meeting window, otherwise FREE.
+    if (calendarResult.status === 'fulfilled') {
       const cal = calendarResult.value;
-      const calSourceMap: Record<string, string> = {
-        google: 'Google Calendar',
-        microsoft: 'Outlook',
-        zoom: 'Zoom',
-        webex: 'Webex',
-      };
-      const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
-
-      // S-01: Upcoming meeting (starts within next 5 min)
       if (cal.upcoming && cal.startAt) {
+        const calSourceMap: Record<string, string> = {
+          google: 'Google Calendar',
+          microsoft: 'Outlook',
+          zoom: 'Zoom',
+          webex: 'Webex',
+        };
+        const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
         try {
           const dt = new Date(cal.startAt);
           const startStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
@@ -168,18 +162,6 @@ export class IntegrationsService implements OnModuleInit {
           return { busy: false, upcoming: true, payload, source: cal.source, endAt: null };
         } catch { /* ignore */ }
       }
-
-      let endStr = '';
-      if (cal.endAt) {
-        try {
-          const dt = new Date(cal.endAt);
-          endStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-        } catch { /* ignore */ }
-      }
-      const payload = src && endStr
-        ? `BUSY · ${src} · ends ${endStr}`
-        : src ? `BUSY · ${src}` : 'BUSY';
-      return { busy: true, upcoming: false, payload, source: cal.source, endAt: cal.endAt };
     }
 
     return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
