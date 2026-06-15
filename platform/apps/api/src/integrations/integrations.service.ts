@@ -186,13 +186,6 @@ export class IntegrationsService implements OnModuleInit {
           return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
         }
 
-        // S-05: Never joined — after 5-min grace period with no mic activity
-        if (eventStartAt) {
-          const minutesSinceStart = (Date.now() - eventStartAt.getTime()) / 60_000;
-          if (minutesSinceStart >= 5) {
-            return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
-          }
-        }
       }
 
       // S-01: Upcoming meeting (starts within next 5 min)
