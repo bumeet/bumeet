@@ -184,9 +184,20 @@ async def run(
 
     container = build_container(config_path, settings_override=settings)
 
+    _INFO_TOPICS = {
+        EventTopic.APP_STARTED.value,
+        EventTopic.BLE_CONNECTED.value,
+        EventTopic.BLE_DISCONNECTED.value,
+        EventTopic.BLE_ERROR.value,
+        EventTopic.BLE_PAYLOAD_SENT.value,
+        EventTopic.OCCUPANCY_CHANGED.value,
+    }
+
     async def _log_container_event(event: AgentEvent) -> None:
-        # Payloads can carry meeting details (PII) and live-status — DEBUG only.
-        logger.debug("event=%s payload=%s", event.topic, event.payload)
+        if event.topic in _INFO_TOPICS:
+            logger.info("event=%s payload=%s", event.topic, event.payload)
+        else:
+            logger.debug("event=%s payload=%s", event.topic, event.payload)
 
     await container.event_bus.subscribe("*", _log_container_event)
     await container.event_bus.emit(
