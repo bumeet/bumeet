@@ -162,21 +162,8 @@ export class IntegrationsService implements OnModuleInit {
       };
       const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
 
-      // S-02 / S-05: Checks for active (non-upcoming) meetings
+      // S-02: Presence signals Available while calendar says BUSY (e.g. Teams/Slack show free)
       if (!cal.upcoming) {
-        const eventStartAt = cal.startAt ? new Date(cal.startAt) : null;
-        // mic was active at some point after this event started (and is now off, since Priority 3
-        // already returned BUSY·Call when micActive=true — so reaching here means mic is off)
-        const micWasUsedDuringEvent = eventStartAt
-          && micRow?.micUpdatedAt
-          && micRow.micUpdatedAt > eventStartAt;
-
-        // S-02: Left early — mic was used during this event and has since been released
-        if (micWasUsedDuringEvent) {
-          return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
-        }
-
-        // S-02 fallback: presence signals Available while calendar says BUSY
         const presenceAllFree = hasPresence && presenceResults.every((r) => {
           if (r.status !== 'fulfilled') return true;
           const v = r.value as any;
@@ -185,7 +172,6 @@ export class IntegrationsService implements OnModuleInit {
         if (presenceAllFree) {
           return { busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null };
         }
-
       }
 
       // S-01: Upcoming meeting (starts within next 5 min)
