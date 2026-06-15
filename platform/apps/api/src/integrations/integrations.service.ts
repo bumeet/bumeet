@@ -15,6 +15,12 @@ export interface LiveStatus {
   endAt: string | null;
 }
 
+// Grace window after a calendar meeting starts: keep showing BUSY for this long so
+// the user has time to actually join (open mic/camera). If no mic/camera/call signal
+// appears within the window, we fall back to FREE — a scheduled meeting you never
+// joined. This is a bounded join window, NOT "calendar = busy for the whole event".
+const JOIN_GRACE_MINUTES = 3;
+
 @Injectable()
 export class IntegrationsService implements OnModuleInit {
   private readonly logger = new Logger(IntegrationsService.name);
@@ -143,11 +149,14 @@ export class IntegrationsService implements OnModuleInit {
     // (Camera-in-use is detected locally by the desktop agent, which renders BUSY
     // directly over BLE — hardware always wins over this API fallback.)
 
-    // Priority 3: calendar — heads-up ONLY. A scheduled event never makes you BUSY
-    // on its own; surface UPCOMING in the 5-min pre-meeting window, otherwise FREE.
-    if (calendarResult.status === 'fulfilled') {
+    // Priority 3: calendar. A scheduled event is NOT proof you joined, so it can only
+    //   (a) surface UPCOMING in the 5-min pre-meeting window, or
+    //   (b) hold BUSY for a short JOIN_GRACE window right after it starts, giving you
+    //       time to actually join. After the grace window, with no mic/camera/call, it
+    //       falls through to FREE — never "busy for the whole meeting".
+    if (calendarResult.status === 'fulfilled' && calendarResult.value.busy) {
       const cal = calendarResult.value;
-      if (cal.upcoming && cal.startAt) {
+      if (cal.startAt) {
         const calSourceMap: Record<string, string> = {
           google: 'Google Calendar',
           microsoft: 'Outlook',
@@ -155,12 +164,29 @@ export class IntegrationsService implements OnModuleInit {
           webex: 'Webex',
         };
         const src = calSourceMap[cal.source ?? ''] ?? (cal.source ?? '');
-        try {
-          const dt = new Date(cal.startAt);
-          const startStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-          const payload = src ? `UPCOMING · ${src} · starts ${startStr}` : `UPCOMING · starts ${startStr}`;
-          return { busy: false, upcoming: true, payload, source: cal.source, endAt: null };
-        } catch { /* ignore */ }
+
+        // (a) Not started yet → UPCOMING heads-up.
+        if (cal.upcoming) {
+          try {
+            const dt = new Date(cal.startAt);
+            const startStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+            const payload = src ? `UPCOMING · ${src} · starts ${startStr}` : `UPCOMING · starts ${startStr}`;
+            return { busy: false, upcoming: true, payload, source: cal.source, endAt: null };
+          } catch { /* ignore */ }
+        } else {
+          // (b) Just started — hold BUSY during the join-grace window.
+          const minutesSinceStart = (Date.now() - new Date(cal.startAt).getTime()) / 60_000;
+          if (minutesSinceStart >= 0 && minutesSinceStart < JOIN_GRACE_MINUTES) {
+            let endStr = '';
+            if (cal.endAt) {
+              try {
+                endStr = new Date(cal.endAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+              } catch { /* ignore */ }
+            }
+            const payload = src && endStr ? `BUSY · ${src} · ends ${endStr}` : src ? `BUSY · ${src}` : 'BUSY';
+            return { busy: true, upcoming: false, payload, source: cal.source, endAt: cal.endAt };
+          }
+        }
       }
     }
 

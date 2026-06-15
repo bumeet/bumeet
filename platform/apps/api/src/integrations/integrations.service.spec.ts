@@ -60,9 +60,9 @@ describe('IntegrationsService.getLiveStatus', () => {
     mockPrisma.calendarEvent.findFirst.mockResolvedValue(null);
   });
 
-  it('returns FREE when a calendar event is active but the user has not joined (no mic/call)', async () => {
+  it('returns FREE when a calendar event has been active past the join grace and the user never joined', async () => {
     mockPrisma.integrationAccount.findMany.mockResolvedValue([account('google')]);
-    // Active event: started in the past, ends in the future → busy:true, upcoming:false.
+    // Started 10 min ago (well past the 3-min join grace), no mic/call → FREE.
     mockPrisma.calendarEvent.findFirst.mockResolvedValue({
       title: 'Standup',
       startAt: new Date(Date.now() - 10 * 60_000),
@@ -74,6 +74,24 @@ describe('IntegrationsService.getLiveStatus', () => {
 
     const result = await service.getLiveStatus(USER);
     expect(result).toEqual({ busy: false, upcoming: false, payload: 'FREE', source: null, endAt: null });
+  });
+
+  it('holds BUSY during the 3-min join grace right after a meeting starts (not yet joined)', async () => {
+    mockPrisma.integrationAccount.findMany.mockResolvedValue([account('google')]);
+    // Started 1 min ago → within the join grace window → BUSY so the user can join.
+    mockPrisma.calendarEvent.findFirst.mockResolvedValue({
+      title: 'Standup',
+      startAt: new Date(Date.now() - 1 * 60_000),
+      endAt: new Date(Date.now() + 29 * 60_000),
+      allDay: false,
+      status: 'confirmed',
+      integration: { provider: 'google' },
+    });
+
+    const result = await service.getLiveStatus(USER);
+    expect(result.busy).toBe(true);
+    expect(result.upcoming).toBe(false);
+    expect(result.payload).toContain('BUSY · Google Calendar · ends');
   });
 
   it('does NOT mark BUSY from Teams "Busy" availability alone (calendar-derived, not a call)', async () => {
