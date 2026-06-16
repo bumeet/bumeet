@@ -85,7 +85,7 @@ class TrayIcon:
     def _build_menu(self) -> pystray.Menu:
         return pystray.Menu(
             # Dynamic title — re-evaluated on every update_menu() call
-            pystray.MenuItem(lambda i, item: self._payload, None, enabled=False),
+            pystray.MenuItem(lambda item: self._payload, None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Open Dashboard",
