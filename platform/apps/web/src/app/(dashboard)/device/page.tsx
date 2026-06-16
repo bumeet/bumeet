@@ -56,16 +56,12 @@ function DevicePage() {
   const token = session?.apiToken;
 
   const macCmd = token
-    ? `curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash -s -- --token ${token}`
-    : `curl -fsSL https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-macos.sh | bash`;
-
-  const winCmd = token
-    ? `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex; # then: .\\install.ps1 -Token ${token}`
-    : `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex`;
+    ? `curl -fsSL https://app.bumeet.es/downloads/install-macos.sh | bash -s -- --token ${token}`
+    : `curl -fsSL https://app.bumeet.es/downloads/install-macos.sh | bash`;
 
   const winCmdFull = token
-    ? `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1))) -Token "${token}"`
-    : `irm https://raw.githubusercontent.com/bumeet/bumeet/main/scripts/install-windows.ps1 | iex`;
+    ? `& ([scriptblock]::Create((irm https://app.bumeet.es/downloads/install-windows.ps1))) -Token "${token}"`
+    : `& ([scriptblock]::Create((irm https://app.bumeet.es/downloads/install-windows.ps1)))`;
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -187,9 +183,7 @@ function DevicePage() {
             <p className="text-xs text-gray-400">
               Requires macOS 13+.{' '}
               <a
-                href="https://github.com/bumeet/bumeet/releases/latest"
-                target="_blank"
-                rel="noreferrer"
+                href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent-macos"
                 className="underline inline-flex items-center gap-1"
               >
                 <Download size={11} />Download manually
@@ -207,9 +201,7 @@ function DevicePage() {
             <p className="text-xs text-gray-400">
               Requires Windows 10/11 with PowerShell 5.1+.{' '}
               <a
-                href="https://github.com/bumeet/bumeet/releases/latest"
-                target="_blank"
-                rel="noreferrer"
+                href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent-windows.exe"
                 className="underline inline-flex items-center gap-1"
               >
                 <Download size={11} />Download .exe manually
