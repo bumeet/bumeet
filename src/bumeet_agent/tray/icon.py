@@ -62,11 +62,19 @@ class TrayIcon:
         """
         self._quit_fn = fn
 
+    @staticmethod
+    def _status_from_payload(payload: str) -> str:
+        """Scan all '·'-separated segments and return the first known status word."""
+        for part in payload.split(" · "):
+            word = part.strip()
+            if word in _COLOR:
+                return word
+        return "OFFLINE"
+
     def set_payload(self, payload: str) -> None:
         """Update the icon colour and tooltip. Safe to call from any thread."""
         self._payload = payload
-        word = payload.split(" · ")[0].strip()
-        self._status = word if word in _COLOR else ("BUSY" if word else "OFFLINE")
+        self._status = self._status_from_payload(payload)
         if self._icon is not None:
             self._icon.icon = _make_icon(self._status)
             self._icon.title = payload

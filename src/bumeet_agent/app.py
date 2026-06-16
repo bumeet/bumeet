@@ -82,6 +82,59 @@ async def _fetch_remote_ble_config(api: ApiSettings) -> BleSettings | None:
     return None
 
 
+_BUMEET_SERVICE_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567891"
+_BUMEET_CHAR_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567892"
+
+
+async def _auto_discover_ble(tray: TrayIcon | None) -> BleSettings | None:
+    """Scan for BUMEET displays by service UUID and auto-configure if exactly one is found."""
+    from bleak import BleakScanner  # noqa: PLC0415
+
+    logger.info("No BLE config found — scanning for BUMEET display (10 s)…")
+    if tray is not None:
+        tray.set_payload("BUMEET · Scanning…")
+
+    try:
+        devices = await BleakScanner.discover(
+            timeout=10.0,
+            service_uuids=[_BUMEET_SERVICE_UUID],
+        )
+    except Exception as exc:
+        logger.warning("BLE scan failed: %s", exc)
+        return None
+
+    if not devices:
+        logger.info(
+            "No BUMEET display found nearby. "
+            "Configure the BLE address in the dashboard: https://app.bumeet.es/device"
+        )
+        if tray is not None:
+            tray.set_payload("BUMEET · No display found")
+        return None
+
+    if len(devices) > 1:
+        addrs = ", ".join(d.address for d in devices)
+        logger.warning(
+            "Multiple BUMEET displays found (%s). "
+            "Select one in the dashboard: https://app.bumeet.es/device",
+            addrs,
+        )
+        if tray is not None:
+            tray.set_payload("BUMEET · Select display")
+        return None
+
+    device = devices[0]
+    logger.info(
+        "BUMEET display found: %s (%s). Configuring automatically.",
+        device.name or "unnamed",
+        device.address,
+    )
+    return BleSettings(
+        device_address=device.address,
+        characteristic_uuid=_BUMEET_CHAR_UUID,
+    )
+
+
 _PAIR_ALPHABET = "BCDFGHJKMNPQRSTVWXYZ2345689"
 _PAIR_TTL = 300  # seconds
 
@@ -195,12 +248,17 @@ async def run(
             return 1
         settings = store.load()  # reload with saved token
 
-    # Optionally override BLE config from the portal.
+    # BLE config: try portal first, then auto-discover via BLE scan.
     if not settings.ble.is_configured:
         remote_ble = await _fetch_remote_ble_config(settings.api)
         if remote_ble:
             logger.info("BLE config loaded from portal: %s", remote_ble.device_address)
             settings = settings.model_copy(update={"ble": remote_ble})
+        else:
+            discovered = await _auto_discover_ble(tray)
+            if discovered:
+                settings = settings.model_copy(update={"ble": discovered})
+                store.save(settings)
 
     container = build_container(config_path, settings_override=settings)
 
