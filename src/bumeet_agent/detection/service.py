@@ -16,7 +16,7 @@ from bumeet_agent.detection.base import DetectionCallback, HardwareDetector
 from bumeet_agent.domain.state_machine import PresenceStateMachine
 from bumeet_agent.domain.status import HardwareSnapshot, OccupancyStatus
 from bumeet_agent.events.bus import AsyncEventBus
-from bumeet_agent.events.models import EventTopic
+from bumeet_agent.events.models import AgentEvent, EventTopic
 from bumeet_agent.logging import get_logger
 
 logger = get_logger(__name__)
@@ -107,6 +107,16 @@ class AgentOrchestrator:
         self._api_poll_task = asyncio.create_task(self._api_poll_loop())
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         self._mic_heartbeat_task = asyncio.create_task(self._mic_heartbeat_loop())
+        await self._event_bus.subscribe(EventTopic.BLE_CONNECTED.value, self._on_ble_connected)
+
+    async def _on_ble_connected(self, event: AgentEvent) -> None:
+        """Resync display state after every BLE connect/reconnect.
+
+        Covers the case where the initial write failed while BLE was still
+        connecting — _last_payload stays empty in BleClient so the reconnect
+        resend is a no-op, but we can recompute the correct state here.
+        """
+        await self._push_combined_state()
 
     async def stop_api_polling(self) -> None:
         for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task):
