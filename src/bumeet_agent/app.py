@@ -262,10 +262,33 @@ async def run(
     return 0
 
 
+async def _scan_ble() -> None:
+    """Discover nearby BLE devices and print their addresses (for onboarding)."""
+    from bleak import BleakScanner  # noqa: PLC0415
+
+    print("Scanning for BLE devices (10 s)…", flush=True)
+    devices = await BleakScanner.discover(timeout=10.0)
+    if not devices:
+        print(
+            "\nNo devices found.\n"
+            "Make sure your BUMEET display is powered on and not already connected to another host."
+        )
+        return
+    print(f"\nFound {len(devices)} device(s):\n")
+    for d in sorted(devices, key=lambda x: getattr(x, "rssi", -999) or -999, reverse=True):
+        name = d.name or "(unnamed)"
+        rssi = getattr(d, "rssi", "?")
+        print(f"  {d.address}  {name}  (RSSI {rssi} dBm)")
+    print("\nCopy your BUMEET display's address into the Device settings page.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="BUMEET local agent")
     parser.add_argument(
         "--config", type=Path, default=None, help="Path to the local settings JSON file"
+    )
+    parser.add_argument(
+        "--scan", action="store_true", help="Scan for nearby BLE devices and print their addresses"
     )
     parser.add_argument(
         "--simulate", action="store_true", help="Run a full offline simulation without BLE hardware"
@@ -288,6 +311,11 @@ def main() -> int:
     args = parser.parse_args()
 
     configure_logging()
+
+    if args.scan:
+        asyncio.run(_scan_ble())
+        return 0
+
     if args.simulate_ui:
         from bumeet_agent.ui.simulator import launch_simulation_viewer  # noqa: PLC0415
 

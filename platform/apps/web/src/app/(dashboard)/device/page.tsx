@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const DEFAULT_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const DEFAULT_CHAR_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567892';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 type Platform = 'macos' | 'windows';

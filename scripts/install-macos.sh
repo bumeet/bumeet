@@ -92,7 +92,7 @@ echo "  Logs:    $LOG_DIR/agent.log"
 echo "  Config:  $CONFIG_FILE"
 if [[ -z "$API_TOKEN" ]]; then
   echo ""
-  echo "  Next step: open the BUMEET portal, go to Device settings,"
-  echo "  copy your API token, then run:"
-  echo "    bumeet-agent --token <your-token>"
+  echo "  Next step: a browser window will open automatically to link the agent"
+  echo "  to your account. Log in at app.bumeet.es if prompted."
+  echo "  If no browser opens, visit: https://app.bumeet.es/device"
 fi

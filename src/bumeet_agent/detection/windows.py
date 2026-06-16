@@ -73,7 +73,7 @@ def _capability_in_use(capability: str) -> bool:
 
 def _take_snapshot() -> HardwareSnapshot:
     return HardwareSnapshot(
-        camera_in_use=_capability_in_use("webcam"),
+        camera_in_use=_capability_in_use("videocapture"),
         microphone_in_use=_capability_in_use("microphone"),
         source="windows:registry",
     )

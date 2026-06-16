@@ -107,6 +107,7 @@ Write-Host "  Logs:    $LogDir\agent.log  (once the agent writes them)"
 Write-Host "  Config:  $ConfigFile"
 if ($Token -eq "") {
     Write-Host ""
-    Write-Host "  Next step: open the BUMEET portal, go to Device settings," -ForegroundColor Yellow
-    Write-Host "  copy your API token, then re-run this script with -Token <your-token>" -ForegroundColor Yellow
+    Write-Host "  Next step: a browser window will open automatically to link the agent" -ForegroundColor Yellow
+    Write-Host "  to your account. Log in at app.bumeet.es if prompted." -ForegroundColor Yellow
+    Write-Host "  If no browser opens, visit: https://app.bumeet.es/device" -ForegroundColor Yellow
 }
