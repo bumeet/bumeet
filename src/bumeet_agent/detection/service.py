@@ -71,6 +71,7 @@ class AgentOrchestrator:
         self._api_poll_task: asyncio.Task[None] | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._mic_heartbeat_task: asyncio.Task[None] | None = None
+        self._battery_task: asyncio.Task[None] | None = None
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
@@ -80,8 +81,9 @@ class AgentOrchestrator:
         # on the single GATT connection. BleClient owns the authoritative payload.
         self._send_lock = asyncio.Lock()
 
-    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60   # resend current state every 5 min
     _MIC_HEARTBEAT_INTERVAL_S: int = 25   # POST /agent/presence every 25 s while mic active
+    _BATTERY_INTERVAL_S: int = 10 * 60   # PATCH /agent/battery every 10 min
     _MAX_AUTH_BACKOFF_S: float = 300.0  # cap exponential backoff on repeated 401s
     _API_STALENESS_S: float = (
         15 * 60.0
@@ -107,19 +109,17 @@ class AgentOrchestrator:
         self._api_poll_task = asyncio.create_task(self._api_poll_loop())
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         self._mic_heartbeat_task = asyncio.create_task(self._mic_heartbeat_loop())
+        self._battery_task = asyncio.create_task(self._battery_report_loop())
         await self._event_bus.subscribe(EventTopic.BLE_CONNECTED.value, self._on_ble_connected)
 
     async def _on_ble_connected(self, event: AgentEvent) -> None:
-        """Resync display state after every BLE connect/reconnect.
-
-        Covers the case where the initial write failed while BLE was still
-        connecting — _last_payload stays empty in BleClient so the reconnect
-        resend is a no-op, but we can recompute the correct state here.
-        """
+        """Resync display state and read battery after every BLE connect/reconnect."""
         await self._push_combined_state()
+        if self._api and self._api.is_configured:
+            asyncio.create_task(self._report_battery_once())
 
     async def stop_api_polling(self) -> None:
-        for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task):
+        for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task, self._battery_task):
             if task and not task.done():
                 task.cancel()
 
@@ -160,6 +160,32 @@ class AgentOrchestrator:
                 except (TimeoutError, aiohttp.ClientError) as exc:
                     logger.debug("POST /agent/presence failed: %s", exc)
                 await asyncio.sleep(self._MIC_HEARTBEAT_INTERVAL_S)
+
+    async def _report_battery_once(self) -> None:
+        """Read battery from CoreInk via BLE and PATCH /agent/battery. Fire-and-forget."""
+        assert self._api is not None
+        level = await self._ble_client.read_battery()
+        if level is None:
+            return
+        url = f"{self._api.url}/agent/battery"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.patch(
+                    url,
+                    json={"level": level},
+                    headers={"x-agent-key": self._api.token, "Content-Type": "application/json"},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    logger.debug("Battery reported: %d%% (HTTP %d)", level, resp.status)
+        except (TimeoutError, aiohttp.ClientError) as exc:
+            logger.debug("Battery report failed: %s", exc)
+
+    async def _battery_report_loop(self) -> None:
+        """Read battery from CoreInk and report to API every 10 min."""
+        while True:
+            await asyncio.sleep(self._BATTERY_INTERVAL_S)
+            if self._api and self._api.is_configured:
+                await self._report_battery_once()
 
     async def _api_poll_loop(self) -> None:
         assert self._api is not None

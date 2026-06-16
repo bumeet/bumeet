@@ -284,6 +284,20 @@ class BleClient:
         """Fallback: alias to write_now for heartbeat compatibility."""
         await self.write_now(payload)
 
+    async def read_battery(self) -> int | None:
+        """Read battery level (0–100) from standard BLE Battery Service (0x2A19).
+
+        Returns None if not connected or the characteristic is unavailable.
+        """
+        if not self.is_connected or self._client is None:
+            return None
+        try:
+            data = await self._client.read_gatt_char("00002a19-0000-1000-8000-00805f9b34fb")
+            return int(data[0]) if data else None
+        except Exception as exc:
+            logger.debug("Battery read failed: %s", exc)
+            return None
+
     def _default_client_factory(self, address: str) -> Any:
         if BleakClient is None:
             raise RuntimeError("bleak is not available in the current environment")

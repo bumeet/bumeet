@@ -76,246 +76,239 @@ function BatteryIndicator({ level, updatedAt }: { level: number | null; updatedA
 }
 
 // ─── M5Stack CoreInk device illustration ──────────────────────────────────────
+// Matches the physical device: dark matte body, square 200×200 e-ink panel,
+// 3 front buttons (A · PWR · B), USB-C on left side.
+
+const DISP = 144; // e-ink active area (square, matches 200×200 physical panel)
+
+function EinkScreen({ label, isBusy, isUpcoming, source, endTime, startTime, isCustom, content }: {
+  label: string; isBusy: boolean; isUpcoming: boolean;
+  source: string | null; endTime: string | null; startTime: string | null;
+  isCustom: boolean; content: string;
+}) {
+  const bg = isBusy ? '#0d0d0d' : '#ece9e2';
+  const scanlines = isBusy ? undefined :
+    'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.025) 1px,rgba(0,0,0,0.025) 2px)';
+
+  return (
+    <div style={{
+      width: DISP, height: DISP,
+      background: bg,
+      backgroundImage: scanlines,
+      borderRadius: 2,
+      position: 'relative',
+      overflow: 'hidden',
+      fontFamily: '"Courier New", Courier, monospace',
+    }}>
+      {isCustom ? (
+        // Custom text message — wrap and center
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '10px 10px',
+        }}>
+          <p style={{ fontSize: 12, color: '#111', textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word' }}>
+            {content}
+          </p>
+        </div>
+      ) : isBusy ? (
+        // BUSY: black bg, "BUSY" centred, source + end time below
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          paddingTop: source ? Math.round(DISP * 0.25) : 0,
+          justifyContent: source ? undefined : 'center',
+        }}>
+          <div style={{ fontSize: 38, fontWeight: 900, color: '#ece9e2', letterSpacing: '0.06em', lineHeight: 1 }}>
+            BUSY
+          </div>
+          {source && (
+            <div style={{ fontSize: 11, color: '#888', marginTop: 9, letterSpacing: '0.05em' }}>
+              {SOURCE_ICONS[source] ?? ''} {source}
+            </div>
+          )}
+          {endTime && (
+            <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>ends {endTime}</div>
+          )}
+        </div>
+      ) : isUpcoming ? (
+        // UPCOMING: white bg, black centre band ("SOON"), source + start time below
+        <>
+          <div style={{
+            position: 'absolute',
+            top: Math.round(DISP * 0.30), left: 0, right: 0,
+            height: Math.round(DISP * 0.28),
+            background: '#0d0d0d',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 28, fontWeight: 900, color: '#ece9e2', letterSpacing: '0.06em' }}>
+              SOON
+            </span>
+          </div>
+          {source && (
+            <div style={{
+              position: 'absolute', top: Math.round(DISP * 0.66),
+              left: 0, right: 0, textAlign: 'center',
+              fontSize: 10, color: '#555', letterSpacing: '0.04em',
+            }}>
+              {source}
+            </div>
+          )}
+          {startTime && (
+            <div style={{
+              position: 'absolute', top: Math.round(DISP * 0.79),
+              left: 0, right: 0, textAlign: 'center',
+              fontSize: 13, fontWeight: 700, color: '#222',
+            }}>
+              starts {startTime}
+            </div>
+          )}
+        </>
+      ) : (
+        // FREE: off-white, "FREE" centred
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          paddingBottom: 6,
+        }}>
+          <div style={{ fontSize: 38, fontWeight: 900, color: '#111', letterSpacing: '0.06em', lineHeight: 1 }}>
+            FREE
+          </div>
+          <div style={{ fontSize: 9, color: '#999', marginTop: 8, letterSpacing: '0.14em' }}>
+            AVAILABLE
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CoreInkDevice({ message }: { message: Message | null }) {
   const { label, isBusy, isUpcoming, source, endTime, startTime } = message
     ? parseMessageMeta(message.content)
     : { label: 'FREE', isBusy: false, isUpcoming: false, source: null, endTime: null, startTime: null };
 
-  const isCustom = message && !message.content.startsWith('BUSY') && !message.content.startsWith('UPCOMING') && message.content !== 'FREE';
+  const isCustom = message
+    ? !['FREE', 'BUSY', 'UPCOMING'].includes(label)
+    : false;
+
+  // Device body: 180 × 200 px — slightly portrait to fit buttons below display
+  const W = 180;
+  const sidePad = 15;  // horizontal margin inside body → display container = 180 - 30 = 150
+  const bezelPad = 3;  // border around e-ink panel
+  // DISP (144) + 2*bezelPad (6) = 150 — fills exactly
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Device body */}
-      <div
-        className="relative select-none"
-        style={{
-          width: 200,
-          height: 220,
-          background: 'linear-gradient(145deg, #e8e8e6 0%, #d8d8d6 40%, #c8c8c6 100%)',
-          borderRadius: 16,
-          boxShadow:
-            '0 2px 0 #b0b0ae, 0 4px 0 #a0a0a0, 0 6px 0 #909090, 0 8px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6)',
-          padding: '14px 14px 10px',
-        }}
-      >
-        {/* Top row: LED + speaker grill */}
-        <div className="flex items-center justify-between mb-2 px-1">
-          <div className="flex gap-1">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="w-0.5 h-1.5 rounded-full bg-gray-500 opacity-50" />
-            ))}
-          </div>
-          {/* Status LED */}
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{
-              background: isBusy ? '#ef4444' : isUpcoming ? '#f59e0b' : '#22c55e',
-              boxShadow: isBusy
-                ? '0 0 6px #ef4444, 0 0 10px rgba(239,68,68,0.4)'
-                : isUpcoming
-                ? '0 0 6px #f59e0b, 0 0 10px rgba(245,158,11,0.4)'
-                : '0 0 6px #22c55e, 0 0 10px rgba(34,197,94,0.4)',
-            }}
-          />
-        </div>
+    <div className="flex flex-col items-center gap-3">
+      {/* ── Device chassis ── */}
+      <div className="relative select-none" style={{
+        width: W,
+        height: 200,
+        background: '#181818',
+        borderRadius: 10,
+        boxShadow: [
+          '0 12px 40px rgba(0,0,0,0.65)',
+          '0 4px 12px rgba(0,0,0,0.45)',
+          'inset 0 1px 0 rgba(255,255,255,0.05)',
+        ].join(', '),
+      }}>
 
-        {/* E-ink screen bezel */}
-        <div
-          style={{
-            background: '#1a1a1a',
-            borderRadius: 6,
-            padding: 3,
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.6)',
-          }}
-        >
-          {/* E-ink screen */}
-          <div
-            style={{
-              width: '100%',
-              height: 142,
-              background: isBusy ? '#f0ece6' : isUpcoming ? '#fef9ec' : '#eef2ee',
-              borderRadius: 4,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: '"Courier New", monospace',
-              position: 'relative',
-              overflow: 'hidden',
-              backgroundImage:
-                'repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.018) 1px,rgba(0,0,0,0.018) 2px)',
-            }}
-          >
-            {isCustom ? (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: '#111',
-                  textAlign: 'center',
-                  padding: '0 10px',
-                  lineHeight: 1.4,
-                  wordBreak: 'break-word',
-                  fontFamily: '"Courier New", monospace',
-                }}
-              >
-                {message!.content}
-              </p>
-            ) : isBusy ? (
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    fontSize: 38,
-                    fontWeight: 900,
-                    color: '#111',
-                    letterSpacing: '0.12em',
-                    lineHeight: 1,
-                    fontFamily: '"Courier New", monospace',
-                  }}
-                >
-                  BUSY
-                </div>
-                {source && (
-                  <div style={{ fontSize: 10, color: '#444', marginTop: 6, letterSpacing: '0.05em' }}>
-                    {SOURCE_ICONS[source]} {source}
-                  </div>
-                )}
-                {endTime && (
-                  <div style={{ fontSize: 10, color: '#666', marginTop: 3 }}>ends {endTime}</div>
-                )}
-              </div>
-            ) : isUpcoming ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#92400e', letterSpacing: '0.1em', marginBottom: 4 }}>UPCOMING</div>
-                {source && (
-                  <div style={{ fontSize: 9, color: '#78350f', letterSpacing: '0.05em', marginBottom: 4 }}>
-                    {SOURCE_ICONS[source] ?? '📅'} {source}
-                  </div>
-                )}
-                {startTime && (
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>starts {startTime}</div>
-                )}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    fontSize: 38,
-                    fontWeight: 900,
-                    color: '#111',
-                    letterSpacing: '0.12em',
-                    lineHeight: 1,
-                    fontFamily: '"Courier New", monospace',
-                  }}
-                >
-                  FREE
-                </div>
-                <div style={{ fontSize: 10, color: '#666', marginTop: 6, letterSpacing: '0.08em' }}>
-                  available
-                </div>
-              </div>
-            )}
-
-            {/* Pixel corners */}
-            {[
-              'top-0.5 left-0.5',
-              'top-0.5 right-0.5',
-              'bottom-0.5 left-0.5',
-              'bottom-0.5 right-0.5',
-            ].map((pos) => (
-              <div key={pos} className={`absolute ${pos} w-1 h-1 bg-gray-400 opacity-30`} />
-            ))}
+        {/* ── E-ink panel + bezel ── */}
+        <div style={{
+          position: 'absolute',
+          top: 14, left: sidePad, right: sidePad,
+        }}>
+          {/* Bezel */}
+          <div style={{
+            padding: bezelPad,
+            background: '#0d0d0d',
+            borderRadius: 4,
+            boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.04)',
+          }}>
+            <EinkScreen
+              label={label} isBusy={isBusy} isUpcoming={isUpcoming}
+              source={source} endTime={endTime} startTime={startTime}
+              isCustom={isCustom} content={message?.content ?? 'FREE'}
+            />
           </div>
         </div>
 
-        {/* Front buttons row */}
-        <div className="flex items-center justify-center gap-3 mt-3">
-          <button
-            className="rounded"
-            style={{
-              width: 28,
-              height: 10,
-              background: 'linear-gradient(180deg,#555 0%,#333 100%)',
-              boxShadow: '0 2px 0 #222, inset 0 1px 0 rgba(255,255,255,0.1)',
-              border: 'none',
-              cursor: 'default',
-            }}
-          />
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: '50%',
-              background: 'linear-gradient(145deg,#4a4a4a 0%,#2a2a2a 100%)',
-              boxShadow: '0 3px 0 #1a1a1a, inset 0 1px 0 rgba(255,255,255,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <span style={{ color: '#aaa', fontSize: 9, fontWeight: 700, letterSpacing: 1 }}>M5</span>
+        {/* ── Three front buttons (A · PWR · B) ── */}
+        <div style={{
+          position: 'absolute',
+          bottom: 16, left: 0, right: 0,
+          display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+          padding: '0 20px',
+        }}>
+          {/* Button A */}
+          <div style={{
+            width: 30, height: 7, borderRadius: 3,
+            background: '#2a2a2a',
+            boxShadow: '0 2px 0 #0a0a0a, inset 0 1px 0 rgba(255,255,255,0.06)',
+          }} />
+          {/* Centre power / M5 button */}
+          <div style={{
+            width: 24, height: 24, borderRadius: '50%',
+            background: 'radial-gradient(circle at 40% 35%, #333 0%, #1a1a1a 100%)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 5.5, color: '#555', fontWeight: 700, fontFamily: 'sans-serif', letterSpacing: 0.3 }}>M5</span>
           </div>
-          <button
-            className="rounded"
-            style={{
-              width: 28,
-              height: 10,
-              background: 'linear-gradient(180deg,#555 0%,#333 100%)',
-              boxShadow: '0 2px 0 #222, inset 0 1px 0 rgba(255,255,255,0.1)',
-              border: 'none',
-              cursor: 'default',
-            }}
-          />
+          {/* Button B */}
+          <div style={{
+            width: 30, height: 7, borderRadius: 3,
+            background: '#2a2a2a',
+            boxShadow: '0 2px 0 #0a0a0a, inset 0 1px 0 rgba(255,255,255,0.06)',
+          }} />
         </div>
 
-        {/* USB-C port — right edge */}
-        <div
-          style={{
-            position: 'absolute',
-            right: -4,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 5,
-            height: 20,
-            background: '#888',
-            borderRadius: '0 3px 3px 0',
-            boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.2)',
-          }}
-        />
+        {/* ── USB-C — left side ── */}
+        <div style={{
+          position: 'absolute',
+          left: -3, bottom: 32,
+          width: 4, height: 12,
+          background: '#2e2e2e',
+          borderRadius: '2px 0 0 2px',
+          boxShadow: 'inset 1px 0 2px rgba(0,0,0,0.5)',
+        }} />
 
-        {/* M5Stack label */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 6,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: 7,
-            color: '#999',
-            letterSpacing: '0.15em',
-            fontFamily: 'sans-serif',
-            whiteSpace: 'nowrap',
-          }}
-        >
+        {/* ── Status LED — top-right corner ── */}
+        <div style={{
+          position: 'absolute', top: 8, right: 12,
+          width: 5, height: 5, borderRadius: '50%',
+          background: isBusy ? '#ef4444' : isUpcoming ? '#f59e0b' : '#22c55e',
+          boxShadow: isBusy
+            ? '0 0 5px 1px rgba(239,68,68,0.5)'
+            : isUpcoming
+            ? '0 0 5px 1px rgba(245,158,11,0.5)'
+            : '0 0 5px 1px rgba(34,197,94,0.5)',
+        }} />
+
+        {/* ── M5Stack label ── */}
+        <div style={{
+          position: 'absolute', bottom: 5, left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 6, color: '#3a3a3a', letterSpacing: '0.18em',
+          fontFamily: 'sans-serif', whiteSpace: 'nowrap', userSelect: 'none',
+        }}>
           M5STACK COREINK
         </div>
       </div>
 
-      {/* Status pill below device */}
+      {/* Status pill */}
       <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            'flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full',
-            isBusy ? 'bg-red-100 text-red-700' : isUpcoming ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700',
-          )}
-        >
-          <span className={cn('w-1.5 h-1.5 rounded-full', isBusy ? 'bg-red-500' : isUpcoming ? 'bg-amber-500 animate-pulse' : 'bg-green-500 animate-pulse')} />
+        <span className={cn(
+          'flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full',
+          isBusy ? 'bg-red-100 text-red-700' : isUpcoming ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700',
+        )}>
+          <span className={cn('w-1.5 h-1.5 rounded-full',
+            isBusy ? 'bg-red-500' : isUpcoming ? 'bg-amber-500 animate-pulse' : 'bg-green-500 animate-pulse',
+          )} />
           {isBusy ? 'Busy' : isUpcoming ? 'Upcoming' : 'Free'}
         </span>
         {message && (
-          <span className="text-xs text-gray-400">
-            updated {format(new Date(message.createdAt), 'HH:mm')}
-          </span>
+          <span className="text-xs text-gray-400">updated {format(new Date(message.createdAt), 'HH:mm')}</span>
         )}
       </div>
     </div>
