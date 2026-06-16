@@ -70,6 +70,7 @@ class AgentOrchestrator:
         self._pending_send: asyncio.Task[None] | None = None
         self._api_poll_task: asyncio.Task[None] | None = None
         self._heartbeat_task: asyncio.Task[None] | None = None
+        self._mic_heartbeat_task: asyncio.Task[None] | None = None
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
@@ -80,6 +81,7 @@ class AgentOrchestrator:
         self._send_lock = asyncio.Lock()
 
     _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _MIC_HEARTBEAT_INTERVAL_S: int = 25   # POST /agent/presence every 25 s while mic active
     _MAX_AUTH_BACKOFF_S: float = 300.0  # cap exponential backoff on repeated 401s
     _API_STALENESS_S: float = (
         15 * 60.0
@@ -98,34 +100,56 @@ class AgentOrchestrator:
         async with self._send_lock:
             await self._ble_client.write_now(payload)
 
-    async def _heartbeat_send(self) -> None:
-        async with self._send_lock:
-            await self._ble_client.resend_last()
-
     async def start_api_polling(self) -> None:
         """Poll /integrations/live-status on interval and push to CoreInk."""
         if not self._api or not self._api.is_configured:
             return
         self._api_poll_task = asyncio.create_task(self._api_poll_loop())
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        self._mic_heartbeat_task = asyncio.create_task(self._mic_heartbeat_loop())
 
     async def stop_api_polling(self) -> None:
-        for task in (self._api_poll_task, self._heartbeat_task):
+        for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task):
             if task and not task.done():
                 task.cancel()
 
     async def _heartbeat_loop(self) -> None:
-        """Periodically re-send the last known payload.
+        """Periodically recompute and resend the correct state payload.
 
-        Ensures the CoreInk recovers its display state after a BLE dropout,
-        device reboot, or any missed state change.
+        Uses _push_combined_state (not ble_client.resend_last) so that if the
+        initial BUSY write failed while BLE was not yet connected, subsequent
+        heartbeats still send BUSY rather than the stale FREE cached by BleClient.
         """
         while True:
             await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
             if self._pending_send and not self._pending_send.done():
                 continue  # an active send is already in flight — skip
-            self._pending_send = asyncio.create_task(self._heartbeat_send())
-            self._pending_send.add_done_callback(self._log_send_exc)
+            await self._push_combined_state()
+
+    async def _mic_heartbeat_loop(self) -> None:
+        """POST /agent/presence every 25 s so the API knows whether the mic is active.
+
+        The API's getLiveStatus() uses this to detect 'Call' presence for any
+        meeting app (Google Meet, FaceTime, browser-based calls) without needing
+        a specific integration. The API treats the value stale after 30 s.
+        """
+        assert self._api is not None
+        url = f"{self._api.url}/agent/presence"
+        headers = {"x-agent-key": self._api.token, "Content-Type": "application/json"}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            while True:
+                status = "busy" if self._last_hw_busy else "free"
+                try:
+                    async with session.post(
+                        url,
+                        json={"status": status},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as resp:
+                        if resp.status not in (200, 201):
+                            logger.debug("POST /agent/presence returned %s", resp.status)
+                except (TimeoutError, aiohttp.ClientError) as exc:
+                    logger.debug("POST /agent/presence failed: %s", exc)
+                await asyncio.sleep(self._MIC_HEARTBEAT_INTERVAL_S)
 
     async def _api_poll_loop(self) -> None:
         assert self._api is not None
