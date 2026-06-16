@@ -24,6 +24,13 @@ a = Analysis(
         'bleak.backends.bluezdbus',
         # pydantic v2 internals
         'pydantic.deprecated.class_validators',
+        # pystray backends (resolved at runtime per platform)
+        'pystray._darwin',
+        'pystray._win32',
+        # PIL modules used by tray/icon.py
+        'PIL.Image',
+        'PIL.ImageDraw',
+        'PIL.ImageFont',
     ],
     hookspath=[],
     hooksconfig={},

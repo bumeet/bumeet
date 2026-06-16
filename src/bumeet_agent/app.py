@@ -8,9 +8,13 @@ import contextlib
 import secrets
 import signal
 import sys
+import threading
 import webbrowser
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from bumeet_agent.tray.icon import TrayIcon
 
 import aiohttp
 
@@ -161,6 +165,7 @@ async def run(
     simulate: bool = False,
     scenario: str = "default",
     delay_scale: float = 1.0,
+    tray: TrayIcon | None = None,
 ) -> int:
     if simulate:
 
@@ -182,6 +187,8 @@ async def run(
 
     default_api_url = AppSettings().api.url
     if not settings.api.is_configured:
+        if tray is not None:
+            tray.set_payload("BUMEET · Pairing…")
         api_for_pairing = settings.api.model_copy(update={"url": default_api_url})
         paired = await _pair_with_portal(api_for_pairing, store)
         if not paired:
@@ -204,6 +211,28 @@ async def run(
             logger.debug("event=%s payload=%s", event.topic, event.payload)
 
     await container.event_bus.subscribe("*", _log_container_event)
+
+    if tray is not None:
+
+        async def _on_ble_payload(event: AgentEvent) -> None:
+            hex_str: str = event.payload.get("payload_hex", "")
+            try:
+                text = bytes.fromhex(hex_str).decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                return
+            if text.startswith(("FREE", "BUSY", "UPCOMING")):
+                tray.set_payload(f"BUMEET · {text}")
+
+        async def _on_ble_disconnected(event: AgentEvent) -> None:
+            tray.set_payload("BUMEET · Disconnected")
+
+        async def _on_ble_connected(event: AgentEvent) -> None:
+            tray.set_payload("BUMEET · Connected")
+
+        await container.event_bus.subscribe(EventTopic.BLE_PAYLOAD_SENT.value, _on_ble_payload)
+        await container.event_bus.subscribe(EventTopic.BLE_DISCONNECTED.value, _on_ble_disconnected)
+        await container.event_bus.subscribe(EventTopic.BLE_CONNECTED.value, _on_ble_connected)
+
     await container.event_bus.emit(
         EventTopic.APP_STARTED.value,
         config_path=str(container.settings_store.path),
@@ -231,12 +260,15 @@ async def run(
     def _request_stop() -> None:
         loop.call_soon_threadsafe(stop_event.set)
 
+    if tray is not None:
+        tray.register_quit(_request_stop)
+
     try:
         loop.add_signal_handler(signal.SIGINT, _request_stop)
         loop.add_signal_handler(signal.SIGTERM, _request_stop)
-    except (NotImplementedError, RuntimeError):
-        # Windows: loop.add_signal_handler is unsupported. Fall back to
-        # signal.signal (fires on the main thread) and bounce into the loop.
+    except (NotImplementedError, RuntimeError, ValueError):
+        # NotImplementedError/ValueError: Windows loop or non-main thread (tray owns it).
+        # Fall back to signal.signal — also suppressed when not in main thread.
         def _signal_stop(*_: Any) -> None:
             _request_stop()
 
@@ -322,14 +354,37 @@ def main() -> int:
         launch_simulation_viewer()
         return 0
 
-    return asyncio.run(
-        run(
-            args.config,
-            simulate=args.simulate,
-            scenario=args.scenario,
-            delay_scale=args.delay_scale,
+    # Simulation mode: no tray (dev/test tool).
+    if args.simulate:
+        return asyncio.run(
+            run(args.config, simulate=True, scenario=args.scenario, delay_scale=args.delay_scale)
         )
-    )
+
+    # Production mode: system tray icon in the menu bar / notification area.
+    try:
+        from bumeet_agent.tray.icon import TrayIcon  # noqa: PLC0415
+
+        tray: TrayIcon | None = TrayIcon()
+    except ImportError:
+        tray = None
+
+    if tray is None:
+        # Headless fallback (no pystray available).
+        return asyncio.run(run(args.config))
+
+    exit_code: list[int] = [0]
+    done = threading.Event()
+
+    def _async_main(icon: object) -> None:
+        try:
+            exit_code[0] = asyncio.run(run(args.config, tray=tray))
+        finally:
+            done.set()
+            tray.stop()
+
+    tray.start(_async_main)  # blocks this thread (AppKit on macOS, Win32 on Windows)
+    done.wait(timeout=10.0)  # wait for asyncio cleanup before returning
+    return exit_code[0]
 
 
 if __name__ == "__main__":
