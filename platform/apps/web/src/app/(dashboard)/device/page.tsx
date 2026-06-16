@@ -175,38 +175,52 @@ function DevicePage() {
         </div>
 
         {platform === 'macos' && (
-          <div className="ml-8 space-y-2">
+          <div className="ml-8 space-y-4">
+            <a
+              href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent.dmg"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              <Download size={16} />
+              Download for macOS
+            </a>
             <p className="text-sm text-gray-500">
-              Run this in <strong>Terminal</strong>. The agent starts automatically at login.
+              Open the <strong>.dmg</strong> and double-click <strong>Install BUMEET Agent</strong>.
+              The agent installs itself and appears in your menu bar. Requires macOS 13+.
             </p>
-            <CopyBlock value={macCmd} />
-            <p className="text-xs text-gray-400">
-              Requires macOS 13+.{' '}
-              <a
-                href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent-macos"
-                className="underline inline-flex items-center gap-1"
-              >
-                <Download size={11} />Download manually
-              </a>
-            </p>
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-500 select-none list-none flex items-center gap-1">
+                <span className="group-open:rotate-90 inline-block transition-transform">▶</span>
+                Advanced — install from Terminal
+              </summary>
+              <div className="mt-2">
+                <CopyBlock value={macCmd} />
+              </div>
+            </details>
           </div>
         )}
 
         {platform === 'windows' && (
-          <div className="ml-8 space-y-2">
+          <div className="ml-8 space-y-4">
+            <a
+              href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent-windows.exe"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              <Download size={16} />
+              Download for Windows
+            </a>
             <p className="text-sm text-gray-500">
-              Run this in <strong>PowerShell</strong> (no admin required). The agent registers as a scheduled task that starts at login.
+              Double-click the downloaded <strong>.exe</strong> — it installs itself and starts automatically.
+              Requires Windows 10/11. No admin required.
             </p>
-            <CopyBlock value={winCmdFull} />
-            <p className="text-xs text-gray-400">
-              Requires Windows 10/11 with PowerShell 5.1+.{' '}
-              <a
-                href="https://stbumeetreleases.blob.core.windows.net/releases/latest/bumeet-agent-windows.exe"
-                className="underline inline-flex items-center gap-1"
-              >
-                <Download size={11} />Download .exe manually
-              </a>
-            </p>
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-500 select-none list-none flex items-center gap-1">
+                <span className="group-open:rotate-90 inline-block transition-transform">▶</span>
+                Advanced — install from PowerShell
+              </summary>
+              <div className="mt-2">
+                <CopyBlock value={winCmdFull} />
+              </div>
+            </details>
           </div>
         )}
       </section>

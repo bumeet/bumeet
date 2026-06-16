@@ -234,6 +234,11 @@ async def run(
         )
         return result.exit_code
 
+    # Self-install as a startup service on first run (frozen binary only; no-op from source).
+    from bumeet_agent.autostart import ensure_autostart  # noqa: PLC0415
+
+    ensure_autostart()
+
     # Load settings. If no API token yet, run the pairing flow first.
     store = SettingsStore(config_path)
     settings = store.load()
