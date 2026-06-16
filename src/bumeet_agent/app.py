@@ -115,7 +115,7 @@ async def _pair_with_portal(api: ApiSettings, settings_store: SettingsStore) -> 
             return False
 
         # Open browser — portal will auto-approve if the user is logged in
-        portal_url = f"https://bumeet.es/device?pair={code}"
+        portal_url = f"https://app.bumeet.es/device?pair={code}"
         webbrowser.open(portal_url)
 
         print("\n" + "=" * 50)
