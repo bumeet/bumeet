@@ -32,6 +32,22 @@ _kAudioObjectPropertyElementMain = 0
 _kAudioHardwarePropertyDevices = _fourcc("dev#")
 _kAudioDevicePropertyDeviceIsRunningSomewhere = _fourcc("gone")
 _kAudioDevicePropertyStreamConfiguration = _fourcc("slay")
+_kAudioDevicePropertyDeviceUID = _fourcc("uid ")
+_kAudioDevicePropertyNominalSampleRate = _fourcc("nsrt")
+_kCFStringEncodingUTF8 = 0x08000100
+# Bluetooth switches from A2DP (44.1/48 kHz) to HFP/HSP (8–16 kHz) only for
+# active calls. Non-BT mics (built-in, USB) never drop below 44.1 kHz.
+_BT_HFP_MAX_SAMPLE_RATE = 16_000
+
+# Virtual audio device UID fragments created by meeting apps.
+# Present (and running) even when the user's mic is muted — the device plays
+# remote participant audio, so is_running=True reliably signals an active call.
+_MEETING_APP_UID_FRAGMENTS = (
+    "Teams",  # Microsoft Teams Audio Device
+    "ZoomAudio",  # Zoom
+    "WebexAudio",  # Cisco Webex
+    "Cisco_Spark",  # older Webex
+)
 
 
 class _PropertyAddress(ctypes.Structure):
@@ -53,6 +69,49 @@ def _load_core_audio() -> ctypes.CDLL | None:
         return lib
     except Exception:
         return None
+
+
+def _load_core_foundation() -> ctypes.CDLL | None:
+    try:
+        lib = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        lib.CFStringGetCString.restype = ctypes.c_bool
+        lib.CFStringGetCString.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_long,
+            ctypes.c_uint32,
+        ]
+        lib.CFRelease.argtypes = [ctypes.c_void_p]
+        return lib
+    except Exception:
+        return None
+
+
+def _get_device_uid(
+    core_audio: ctypes.CDLL, core_foundation: ctypes.CDLL, device_id: int
+) -> str | None:
+    """Return the UID string for a CoreAudio device, or None on failure."""
+    addr = _PropertyAddress(
+        mSelector=_kAudioDevicePropertyDeviceUID,
+        mScope=_kAudioObjectPropertyScopeGlobal,
+        mElement=_kAudioObjectPropertyElementMain,
+    )
+    cf_string = ctypes.c_void_p(0)
+    size = ctypes.c_uint32(ctypes.sizeof(ctypes.c_void_p))
+    err = core_audio.AudioObjectGetPropertyData(
+        ctypes.c_uint32(device_id),
+        ctypes.byref(addr),
+        ctypes.c_uint32(0),
+        None,
+        ctypes.byref(size),
+        ctypes.byref(cf_string),
+    )
+    if err != 0 or not cf_string.value:
+        return None
+    buf = ctypes.create_string_buffer(256)
+    ok = core_foundation.CFStringGetCString(cf_string, buf, 256, _kCFStringEncodingUTF8)
+    core_foundation.CFRelease(cf_string)
+    return buf.value.decode("utf-8", errors="replace") if ok else None
 
 
 def _audio_get_devices(lib: ctypes.CDLL) -> list[int]:
@@ -151,6 +210,75 @@ def _poll_microphone() -> bool:
                 return True
     except Exception:
         logger.exception("CoreAudio mic check raised an unexpected exception")
+    return False
+
+
+def _get_device_sample_rate(lib: ctypes.CDLL, device_id: int) -> float | None:
+    """Return the nominal sample rate of an audio device, or None on error."""
+    addr = _PropertyAddress(
+        mSelector=_kAudioDevicePropertyNominalSampleRate,
+        mScope=_kAudioObjectPropertyScopeGlobal,
+        mElement=_kAudioObjectPropertyElementMain,
+    )
+    value = ctypes.c_double(0.0)
+    size = ctypes.c_uint32(ctypes.sizeof(ctypes.c_double))
+    err = lib.AudioObjectGetPropertyData(
+        ctypes.c_uint32(device_id),
+        ctypes.byref(addr),
+        ctypes.c_uint32(0),
+        None,
+        ctypes.byref(size),
+        ctypes.byref(value),
+    )
+    return float(value.value) if err == 0 else None
+
+
+def _poll_bt_hfp_call() -> bool:
+    """Return True if any Bluetooth input device is in HFP/HSP call mode.
+
+    macOS switches a BT headset from A2DP (44.1/48 kHz, for music/general audio)
+    to HFP/HSP (8–16 kHz, narrow-band) only when a call app requests it.
+    Non-BT mics (built-in, USB) stay at 44.1/48 kHz regardless, so a sample
+    rate ≤ 16 kHz on any input device is a reliable indicator of an active call —
+    even when the mic is muted in the call app.
+    """
+    lib = _load_core_audio()
+    if lib is None:
+        return False
+    try:
+        for device_id in _audio_get_devices(lib):
+            if not _audio_device_has_input_streams(lib, device_id):
+                continue
+            rate = _get_device_sample_rate(lib, device_id)
+            if rate is not None and 0 < rate <= _BT_HFP_MAX_SAMPLE_RATE:
+                logger.debug("BT HFP call mode detected on device %d (%.0f Hz)", device_id, rate)
+                return True
+    except Exception:
+        logger.debug("BT HFP call check failed", exc_info=True)
+    return False
+
+
+def _poll_meeting_app_audio() -> bool:
+    """Return True if a known meeting-app virtual audio device is actively running.
+
+    Covers the case where the user is in a Teams/Zoom/Webex call with the mic
+    muted — the virtual device continues playing remote audio, so is_running is
+    True even though the physical microphone is not capturing anything.
+    """
+    core_audio = _load_core_audio()
+    core_foundation = _load_core_foundation()
+    if core_audio is None or core_foundation is None:
+        return False
+    try:
+        for device_id in _audio_get_devices(core_audio):
+            if not _audio_device_is_running(core_audio, device_id):
+                continue
+            uid = _get_device_uid(core_audio, core_foundation, device_id)
+            if uid and any(frag in uid for frag in _MEETING_APP_UID_FRAGMENTS):
+                logger.debug("Meeting-app device active: %s (device %d)", uid, device_id)
+                return True
+    except Exception:
+        logger.debug("Meeting-app audio check failed", exc_info=True)
     return False
 
 
@@ -256,6 +384,6 @@ class MacOSHardwareDetector(HardwareDetector):
 def _take_snapshot(poll_camera: bool = True, last_camera: bool = False) -> HardwareSnapshot:
     return HardwareSnapshot(
         camera_in_use=_poll_camera() if poll_camera else last_camera,
-        microphone_in_use=_poll_microphone(),
+        microphone_in_use=_poll_microphone() or _poll_bt_hfp_call() or _poll_meeting_app_audio(),
         source="macos:poll",
     )
