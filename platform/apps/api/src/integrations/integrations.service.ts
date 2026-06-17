@@ -288,7 +288,7 @@ export class IntegrationsService implements OnModuleInit {
         allDay: false,          // S-04: skip all-day events (out-of-office, holidays, etc.)
         startAt: { lte: lookahead },
         endAt: { gt: now },
-        status: 'confirmed',
+        status: { in: ['confirmed', 'tentative'] },
       },
       include: { integration: { select: { provider: true } } },
       orderBy: { startAt: 'asc' }, // nearest event first
