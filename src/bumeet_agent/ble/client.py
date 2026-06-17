@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from collections.abc import Callable
 from typing import Any
 
@@ -26,6 +27,9 @@ _RECONNECT_INTERVAL_S = 5.0
 _KEEPALIVE_INTERVAL_S = 20.0
 # Generous timeout so write_now survives the initial ~30 s scan+connect.
 _WRITE_WAIT_S = 60.0
+# After this many consecutive "not found" failures (~3 min at 15 s retry),
+# toggle macOS Bluetooth to flush CoreBluetooth's stale device cache.
+_BT_RESET_AFTER_FAILURES = 12
 
 
 class BleClient:
@@ -57,6 +61,7 @@ class BleClient:
         # Monotonic time of the last successful GATT write (keepalive or real).
         # Shared across both paths so keepalive backs off after a real write.
         self._last_write_time: float = 0.0
+        self._not_found_streak: int = 0
 
     @property
     def is_connected(self) -> bool:
@@ -106,10 +111,15 @@ class BleClient:
                         self._last_write_time = loop.time()
                         logger.debug("BLE reconnect sync sent")
                     self._connected_event.set()
+                    self._not_found_streak = 0
                 except Exception as exc:
                     logger.debug(
                         "Reconnect failed: %s — retry in %.0fs", exc, _RECONNECT_INTERVAL_S
                     )
+                    self._not_found_streak += 1
+                    if self._not_found_streak >= _BT_RESET_AFTER_FAILURES:
+                        self._not_found_streak = 0
+                        await self._reset_bluetooth()
                     await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                     continue
             else:
@@ -200,6 +210,43 @@ class BleClient:
 
     # ── Low-level connection management ──────────────────────────────────────
 
+    async def _scan_for_device(self) -> Any | None:
+        """Active BLE scan to force macOS to rediscover the device, bypassing cache.
+
+        CoreBluetooth caches devices as 'not found' after an abrupt disconnect
+        (e.g. device reboot). A scanner pass forces a real RF scan so the cache
+        is refreshed. Returns the BLEDevice if found, None otherwise.
+        """
+        if BleakScanner is None:
+            return None
+        try:
+            return await BleakScanner.find_device_by_address(
+                self._settings.device_address, timeout=10.0
+            )
+        except Exception as exc:
+            logger.debug("Active scan failed: %s", exc)
+            return None
+
+    async def _reset_bluetooth(self) -> None:
+        """Toggle macOS Bluetooth off/on to flush the CoreBluetooth device cache.
+
+        Called automatically after _BT_RESET_AFTER_FAILURES consecutive 'not found'
+        failures (~3 min). Requires blueutil; silently skips if not installed.
+        """
+        if not shutil.which("blueutil"):
+            logger.debug("blueutil not found — skipping BT reset")
+            return
+        logger.info("BLE cache stale after repeated failures — resetting macOS Bluetooth")
+        try:
+            p = await asyncio.create_subprocess_exec("blueutil", "--power", "0")
+            await p.wait()
+            await asyncio.sleep(2)
+            p = await asyncio.create_subprocess_exec("blueutil", "--power", "1")
+            await p.wait()
+            await asyncio.sleep(5)
+        except Exception as exc:
+            logger.debug("Bluetooth reset failed: %s", exc)
+
     async def connect(self) -> None:
         if not self._settings.is_configured:
             raise ValueError("BLE settings incomplete.")
@@ -211,7 +258,14 @@ class BleClient:
             await self._event_bus.emit(
                 EventTopic.BLE_CONNECTING.value, address=self._settings.device_address
             )
-            client = self._client_factory(self._settings.device_address)
+            # Active scan forces macOS to search the RF band, bypassing the
+            # CoreBluetooth cache that marks recently-rebooted devices as absent.
+            discovered = await self._scan_for_device()
+            client = (
+                BleakClient(discovered)
+                if discovered is not None and BleakClient is not None
+                else self._client_factory(self._settings.device_address)
+            )
 
             try:
                 await client.connect(timeout=self._settings.connect_timeout_seconds)
