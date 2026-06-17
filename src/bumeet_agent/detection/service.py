@@ -77,6 +77,7 @@ class AgentOrchestrator:
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
         self._last_api_data: dict[str, Any] | None = None
+        self._last_custom_message_id: str | None = None
         self._last_api_success_at: float = 0.0
         # Serialize all BLE writes so a state change and the heartbeat can't race
         # on the single GATT connection. BleClient owns the authoritative payload.
@@ -256,6 +257,7 @@ class AgentOrchestrator:
                             data: dict[str, Any] = await resp.json()
                             busy: bool = data.get("busy", False)
                             upcoming: bool = data.get("upcoming", False)
+                            custom_id: str | None = data.get("customMessageId")
                             # Always track last successful response so _push_combined_state
                             # can use it when triggered by a hardware change (no api_data arg).
                             self._last_api_data = data
@@ -264,9 +266,11 @@ class AgentOrchestrator:
                             if (
                                 effective_busy != self._last_api_busy
                                 or upcoming != self._last_api_upcoming
+                                or custom_id != self._last_custom_message_id
                             ):
                                 self._last_api_busy = effective_busy
                                 self._last_api_upcoming = upcoming
+                                self._last_custom_message_id = custom_id
                                 await self._push_combined_state(api_data=data)
                 except (TimeoutError, aiohttp.ClientError) as exc:
                     logger.debug("live-status poll failed: %s", exc)
@@ -290,6 +294,10 @@ class AgentOrchestrator:
 
         if self._last_hw_busy:
             payload = b"BUSY"
+        elif effective_api and effective_api.get("customMessageId"):
+            # Custom message overrides presence when hardware is not busy.
+            raw: str = effective_api.get("payload") or "FREE"
+            payload = raw.encode("utf-8")
         elif effective_api and (effective_api.get("busy") or effective_api.get("upcoming")):
             # payload field from live-status is the ready-to-send string
             # (e.g. "BUSY · Slack", "UPCOMING · Google Calendar · starts 14:30")
