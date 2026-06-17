@@ -234,24 +234,46 @@ def _get_device_sample_rate(lib: ctypes.CDLL, device_id: int) -> float | None:
 
 
 def _poll_bt_hfp_call() -> bool:
-    """Return True if any Bluetooth input device is in HFP/HSP call mode.
+    """Return True if a Bluetooth headset is in an active HFP/HSP call.
 
-    macOS switches a BT headset from A2DP (44.1/48 kHz, for music/general audio)
-    to HFP/HSP (8–16 kHz, narrow-band) only when a call app requests it.
-    Non-BT mics (built-in, USB) stay at 44.1/48 kHz regardless, so a sample
-    rate ≤ 16 kHz on any input device is a reliable indicator of an active call —
-    even when the mic is muted in the call app.
+    macOS switches a BT headset from A2DP (44.1/48 kHz) to HFP/HSP (8–16 kHz)
+    when a call starts. However, after the call ends the INPUT side can stay at
+    16 kHz for a while before switching back (residual HFP state). To avoid this
+    false positive we require BOTH the input AND output counterpart of the same
+    BT device to be at ≤ 16 kHz — the output reverts to 44.1 kHz as soon as the
+    call ends, so this pair-check is much more precise.
+
+    BT device UIDs follow the pattern '<MAC>:input' / '<MAC>:output'.
     """
     lib = _load_core_audio()
-    if lib is None:
+    cf = _load_core_foundation()
+    if lib is None or cf is None:
         return False
     try:
+        # Build a map of uid_prefix → sample_rate for all devices
+        rates: dict[str, float] = {}
         for device_id in _audio_get_devices(lib):
-            if not _audio_device_has_input_streams(lib, device_id):
-                continue
+            uid = _get_device_uid(lib, cf, device_id)
             rate = _get_device_sample_rate(lib, device_id)
-            if rate is not None and 0 < rate <= _BT_HFP_MAX_SAMPLE_RATE:
-                logger.debug("BT HFP call mode detected on device %d (%.0f Hz)", device_id, rate)
+            if uid and rate is not None:
+                rates[uid] = rate
+
+        for uid, rate in rates.items():
+            if not uid.endswith(":input"):
+                continue
+            if not (0 < rate <= _BT_HFP_MAX_SAMPLE_RATE):
+                continue
+            # Check the output peer of the same BT device
+            output_uid = uid[: -len(":input")] + ":output"
+            output_rate = rates.get(output_uid)
+            if output_rate is not None and 0 < output_rate <= _BT_HFP_MAX_SAMPLE_RATE:
+                logger.debug(
+                    "BT HFP call: input=%s %.0fHz, output=%s %.0fHz",
+                    uid,
+                    rate,
+                    output_uid,
+                    output_rate,
+                )
                 return True
     except Exception:
         logger.debug("BT HFP call check failed", exc_info=True)
