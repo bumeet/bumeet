@@ -1,5 +1,6 @@
 import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { providerFetch } from './http';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -80,7 +81,7 @@ export class ZoomService {
 
     const accessToken = await this.getValidToken(integration);
 
-    const res = await fetch(`${this.API_URL}/users/me/presence_status`, {
+    const res = await providerFetch(`${this.API_URL}/users/me/presence_status`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -110,7 +111,7 @@ export class ZoomService {
       const params = new URLSearchParams({ type: 'upcoming', page_size: '300' });
       if (nextPageToken) params.set('next_page_token', nextPageToken);
 
-      const res = await fetch(`${this.API_URL}/users/me/meetings?${params}`, {
+      const res = await providerFetch(`${this.API_URL}/users/me/meetings?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) throw new Error(`Zoom meetings fetch failed: ${res.status}`);
@@ -198,7 +199,7 @@ export class ZoomService {
       `${this.config.get('ZOOM_CLIENT_ID')}:${this.config.get('ZOOM_CLIENT_SECRET')}`,
     ).toString('base64');
 
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -219,7 +220,7 @@ export class ZoomService {
       `${this.config.get('ZOOM_CLIENT_ID')}:${this.config.get('ZOOM_CLIENT_SECRET')}`,
     ).toString('base64');
 
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -232,7 +233,7 @@ export class ZoomService {
   }
 
   private async getProfile(accessToken: string) {
-    const res = await fetch(`${this.API_URL}/users/me`, {
+    const res = await providerFetch(`${this.API_URL}/users/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) throw new Error(`Zoom profile fetch failed: ${await res.text()}`);

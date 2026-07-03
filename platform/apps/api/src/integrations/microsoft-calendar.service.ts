@@ -7,6 +7,7 @@
 
 import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { providerFetch } from './http';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -180,7 +181,7 @@ export class MicrosoftCalendarService {
       `&$top=250&$orderby=start/dateTime`;
 
     while (url) {
-      const res = await fetch(url, {
+      const res = await providerFetch(url, {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       });
       if (!res.ok) {
@@ -196,7 +197,7 @@ export class MicrosoftCalendarService {
   }
 
   private async exchangeCode(code: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -212,7 +213,7 @@ export class MicrosoftCalendarService {
   }
 
   private async refreshToken(refreshToken: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -262,7 +263,7 @@ export class MicrosoftCalendarService {
       });
     }
 
-    const res = await fetch(`${this.GRAPH_URL}/me/presence`, {
+    const res = await providerFetch(`${this.GRAPH_URL}/me/presence`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -282,7 +283,7 @@ export class MicrosoftCalendarService {
   }
 
   private async getProfile(accessToken: string) {
-    const res = await fetch(`${this.GRAPH_URL}/me`, {
+    const res = await providerFetch(`${this.GRAPH_URL}/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) {

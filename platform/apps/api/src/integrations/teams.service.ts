@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { providerFetch } from './http';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -84,7 +85,7 @@ export class TeamsService {
       });
     }
 
-    const res = await fetch(`${this.GRAPH_URL}/me/presence`, {
+    const res = await providerFetch(`${this.GRAPH_URL}/me/presence`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -101,7 +102,7 @@ export class TeamsService {
   }
 
   private async exchangeCode(code: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -117,7 +118,7 @@ export class TeamsService {
   }
 
   private async refreshToken(refreshToken: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -133,7 +134,7 @@ export class TeamsService {
   }
 
   private async getProfile(accessToken: string) {
-    const res = await fetch(`${this.GRAPH_URL}/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const res = await providerFetch(`${this.GRAPH_URL}/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) throw new Error(`Graph profile failed: ${await res.text()}`);
     return res.json();
   }
