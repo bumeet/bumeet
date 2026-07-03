@@ -57,6 +57,8 @@ export function useBusyStatus(
 ): CalendarStatus {
   const wasBusy = useRef<boolean | null>(null);
   const sending = useRef(false);
+  const queued = useRef<string | null>(null);
+  const calendarLoaded = useRef(false);
   const [calendarStatus, setCalendarStatus] = useState<CalendarStatus>({
     busy: false,
     reason: null,
@@ -65,12 +67,27 @@ export function useBusyStatus(
   });
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!token || sending.current) return;
+      if (!token) return;
+      if (sending.current) {
+        // Never drop a transition: remember the latest desired state and let the
+        // in-flight send flush it. Dropping here left the display stale (e.g. BUSY
+        // forever after a call ended during a slow POST).
+        queued.current = content;
+        return;
+      }
       sending.current = true;
       try {
-        await api.post('/messages', { content }, token);
-      } catch {
-        // best-effort — don't surface errors to user
+        let next: string | null = content;
+        while (next !== null) {
+          const current = next;
+          try {
+            await api.post('/messages', { content: current }, token);
+          } catch {
+            // best-effort — don't surface errors to user
+          }
+          next = queued.current;
+          queued.current = null;
+        }
       } finally {
         sending.current = false;
       }
@@ -85,6 +102,7 @@ export function useBusyStatus(
     const check = async () => {
       try {
         const res = await api.get<CalendarStatus>('/integrations/busy', token);
+        calendarLoaded.current = true;
         setCalendarStatus(res);
       } catch {
         // ignore
@@ -101,6 +119,10 @@ export function useBusyStatus(
   // transition (free→busy with no Slack change) is no longer missed.
   useEffect(() => {
     if (!token) return;
+    // Don't send anything until the first /integrations/busy response has landed:
+    // before that, calendarStatus is just the initial free placeholder, and the
+    // initial send would flip a genuinely-busy display to FREE for up to 30 s.
+    if (!calendarLoaded.current) return;
 
     const slackBusy = Object.values(slackPresence).some((p) => p.inCall);
     const isBusy = slackBusy || calendarStatus.busy;
