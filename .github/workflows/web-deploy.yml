@@ -12,59 +12,12 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches: [main]
   workflow_dispatch:
-    inputs:
-      keep:
-        description: "TEMP cleanup mode: comma-separated SWA preview environments to keep (PR numbers)"
-        required: false
-        default: "47"
 
 jobs:
-  # TEMPORARY (branch-only): dispatching this workflow on this branch runs the
-  # orphaned-preview cleanup instead of a deploy. See swa-preview-cleanup.yml
-  # for the permanent standalone version (dispatchable once merged to main).
-  swa-cleanup:
-    name: Delete orphaned SWA preview environments
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    env:
-      RESOURCE_GROUP: rg-bumeet-dev
-      SWA_NAME: swa-bumeet-dev
-    steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Delete staging environments not in keep list
-        run: |
-          KEEP=",${{ github.event.inputs.keep }},"
-          echo "── Environments before cleanup ──"
-          az staticwebapp environment list \
-            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-            --query "[].{name:name, hostname:hostname, status:status}" -o table
-
-          for ENV_NAME in $(az staticwebapp environment list \
-              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-              --query "[?name!='default'].name" -o tsv); do
-            if [[ "$KEEP" == *",$ENV_NAME,"* ]]; then
-              echo "⏭  Keeping '$ENV_NAME' (in keep list)"
-              continue
-            fi
-            echo "🗑  Deleting staging environment '$ENV_NAME'"
-            az staticwebapp environment delete \
-              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-              --environment-name "$ENV_NAME" --yes
-          done
-
-          echo "── Environments after cleanup ──"
-          az staticwebapp environment list \
-            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-            --query "[].{name:name, hostname:hostname, status:status}" -o table
-
   build-and-deploy:
     name: Build & Deploy Web
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
 
     steps:
       - uses: actions/checkout@v4
