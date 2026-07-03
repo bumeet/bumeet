@@ -30,6 +30,10 @@ _WRITE_WAIT_S = 60.0
 # After this many consecutive "not found" failures (~3 min at 15 s retry),
 # toggle macOS Bluetooth to flush CoreBluetooth's stale device cache.
 _BT_RESET_AFTER_FAILURES = 12
+# Minimum spacing between Bluetooth resets. Without it, a display that is simply
+# out of range (laptop taken home, dead battery) would power-cycle the user's
+# whole BT stack — AirPods, keyboard, mouse — every ~3 min, indefinitely.
+_BT_RESET_COOLDOWN_S = 30 * 60.0
 
 
 class BleClient:
@@ -49,8 +53,13 @@ class BleClient:
         self._settings = settings
         self._event_bus = event_bus
         self._client_factory = client_factory or self._default_client_factory
+        # A custom factory means a simulated/test backend — skip real RF scans.
+        self._uses_custom_factory = client_factory is not None
         self._client: Any | None = None
         self._lock = asyncio.Lock()
+        # Serializes every GATT write (keepalive, reconnect resync, send_payload)
+        # so the keepalive can't interleave a stale payload after a fresh one.
+        self._write_lock = asyncio.Lock()
         self._keep_connected = False
         self._connection_task: asyncio.Task[None] | None = None
         self._connected_event = asyncio.Event()
@@ -62,6 +71,7 @@ class BleClient:
         # Shared across both paths so keepalive backs off after a real write.
         self._last_write_time: float = 0.0
         self._not_found_streak: int = 0
+        self._last_bt_reset: float | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -103,11 +113,12 @@ class BleClient:
                     # write_now (waiting on _connected_event) is the first write.
                     assert self._client is not None
                     if self._last_payload:
-                        await self._client.write_gatt_char(
-                            self._settings.characteristic_uuid,
-                            self._last_payload,
-                            response=self._settings.write_with_response,
-                        )
+                        async with self._write_lock:
+                            await self._client.write_gatt_char(
+                                self._settings.characteristic_uuid,
+                                self._last_payload,
+                                response=self._settings.write_with_response,
+                            )
                         self._last_write_time = loop.time()
                         logger.debug("BLE reconnect sync sent")
                     self._connected_event.set()
@@ -119,22 +130,38 @@ class BleClient:
                     self._not_found_streak += 1
                     if self._not_found_streak >= _BT_RESET_AFTER_FAILURES:
                         self._not_found_streak = 0
-                        await self._reset_bluetooth()
+                        if (
+                            self._last_bt_reset is None
+                            or loop.time() - self._last_bt_reset >= _BT_RESET_COOLDOWN_S
+                        ):
+                            self._last_bt_reset = loop.time()
+                            await self._reset_bluetooth()
+                        else:
+                            logger.debug("Skipping BT reset — cooldown active")
                     await self._sleep_or_wake(_RECONNECT_INTERVAL_S)
                     continue
             else:
+                # Connection may have been established outside this loop (eager
+                # connect() at startup): unblock write_now waiters.
+                if not self._connected_event.is_set():
+                    self._connected_event.set()
                 elapsed = now - self._last_write_time
-                if elapsed >= _KEEPALIVE_INTERVAL_S:
+                if not self._last_payload:
+                    # Nothing written yet — never send a 0-byte keepalive, which is
+                    # a garbage message (or an error) on the firmware side.
+                    sleep_for = _KEEPALIVE_INTERVAL_S
+                elif elapsed >= _KEEPALIVE_INTERVAL_S:
                     # Re-write last payload only if no real write happened recently.
                     # Firmware deduplicates identical payloads — fire-and-forget is
                     # intentional here (a missed keepalive just reconnects).
                     try:
                         assert self._client is not None
-                        await self._client.write_gatt_char(
-                            self._settings.characteristic_uuid,
-                            self._last_payload,
-                            response=False,
-                        )
+                        async with self._write_lock:
+                            await self._client.write_gatt_char(
+                                self._settings.characteristic_uuid,
+                                self._last_payload,
+                                response=False,
+                            )
                         self._last_write_time = loop.time()
                         logger.debug("BLE keepalive sent")
                     except Exception as exc:
@@ -260,7 +287,8 @@ class BleClient:
             )
             # Active scan forces macOS to search the RF band, bypassing the
             # CoreBluetooth cache that marks recently-rebooted devices as absent.
-            discovered = await self._scan_for_device()
+            # Simulated/test backends have no radio — skip the 10 s scan.
+            discovered = None if self._uses_custom_factory else await self._scan_for_device()
             client = (
                 BleakClient(discovered)
                 if discovered is not None and BleakClient is not None
@@ -307,11 +335,12 @@ class BleClient:
         assert self._client is not None
 
         try:
-            await self._client.write_gatt_char(
-                self._settings.characteristic_uuid,
-                payload,
-                response=self._settings.write_with_response,
-            )
+            async with self._write_lock:
+                await self._client.write_gatt_char(
+                    self._settings.characteristic_uuid,
+                    payload,
+                    response=self._settings.write_with_response,
+                )
             self._last_write_time = asyncio.get_running_loop().time()
         except Exception as exc:
             await self._event_bus.emit(

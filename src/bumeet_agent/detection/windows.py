@@ -1,6 +1,6 @@
 """Windows hardware detector using the Capability Access Manager registry.
 
-Windows records per-app microphone/webcam usage under
+Windows records per-app microphone/camera ("videocapture") usage under
 ``HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore``.
 For each app subkey, ``LastUsedTimeStart`` is the FILETIME the app began using the
 device and ``LastUsedTimeStop`` is when it stopped — ``LastUsedTimeStop == 0`` while
@@ -58,7 +58,7 @@ def _scan_consent_key(key: Any) -> bool:
 
 
 def _capability_in_use(capability: str) -> bool:
-    """capability is 'microphone' or 'webcam'."""
+    """capability is 'microphone' or 'videocapture' (the camera consent key)."""
     import winreg
 
     try:
