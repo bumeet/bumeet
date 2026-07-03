@@ -21,6 +21,24 @@ export interface LiveStatus {
 // joined. This is a bounded join window, NOT "calendar = busy for the whole event".
 const JOIN_GRACE_MINUTES = 3;
 
+// Every IntegrationAccount column except accessToken/refreshToken. The Prisma read
+// middleware decrypts those on every query, so any handler that returns a raw row
+// would hand decrypted OAuth credentials to the browser.
+const SAFE_INTEGRATION_SELECT = {
+  id: true,
+  userId: true,
+  provider: true,
+  providerAccountId: true,
+  label: true,
+  tokenExpiresAt: true,
+  status: true,
+  lastSyncAt: true,
+  eventsImported: true,
+  errorMessage: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 @Injectable()
 export class IntegrationsService implements OnModuleInit {
   private readonly logger = new Logger(IntegrationsService.name);
@@ -52,7 +70,7 @@ export class IntegrationsService implements OnModuleInit {
       const integrations = await this.prisma.integrationAccount.findMany({
         where: { provider: { in: ['google', 'microsoft', 'zoom', 'webex'] }, status: 'active' },
       });
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         integrations.map((i) => {
           if (i.provider === 'google') return this.google.syncEvents(i.id);
           if (i.provider === 'microsoft') return this.microsoft.syncEvents(i.id);
@@ -60,7 +78,17 @@ export class IntegrationsService implements OnModuleInit {
           if (i.provider === 'webex') return this.webex.syncEvents(i.id);
         }),
       );
-      this.logger.log(`Auto-synced ${integrations.length} calendar integration(s)`);
+      let failed = 0;
+      results.forEach((r, idx) => {
+        if (r.status === 'rejected') {
+          failed++;
+          const i = integrations[idx];
+          this.logger.warn(`Sync failed for ${i.provider} integration ${i.id}: ${r.reason}`);
+        }
+      });
+      this.logger.log(
+        `Auto-synced ${integrations.length - failed}/${integrations.length} calendar integration(s)`,
+      );
     } catch (e) {
       this.logger.warn(`Auto-sync error: ${e}`);
     } finally {
@@ -197,6 +225,7 @@ export class IntegrationsService implements OnModuleInit {
     return this.prisma.integrationAccount.findMany({
       where: { userId },
       orderBy: { createdAt: 'asc' },
+      select: SAFE_INTEGRATION_SELECT,
     });
   }
 
@@ -211,6 +240,7 @@ export class IntegrationsService implements OnModuleInit {
         lastSyncAt: new Date(),
         eventsImported: Math.floor(Math.random() * 30) + 5,
       },
+      select: SAFE_INTEGRATION_SELECT,
     });
   }
 
@@ -327,29 +357,21 @@ export class IntegrationsService implements OnModuleInit {
     });
     if (!integration) throw new NotFoundException('Integration not found');
 
-    if (integration.provider === 'google') {
-      await this.google.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
-    }
+    const syncers: Record<string, (id: string) => Promise<number>> = {
+      google: (id) => this.google.syncEvents(id),
+      microsoft: (id) => this.microsoft.syncEvents(id),
+      slack: (id) => this.slack.syncEvents(id),
+      zoom: (id) => this.zoom.syncEvents(id),
+      webex: (id) => this.webex.syncEvents(id),
+    };
 
-    if (integration.provider === 'microsoft') {
-      await this.microsoft.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
-    }
-
-    if (integration.provider === 'slack') {
-      await this.slack.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
-    }
-
-    if (integration.provider === 'zoom') {
-      await this.zoom.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
-    }
-
-    if (integration.provider === 'webex') {
-      await this.webex.syncEvents(integrationId);
-      return this.prisma.integrationAccount.findUnique({ where: { id: integrationId } });
+    const syncer = syncers[integration.provider];
+    if (syncer) {
+      await syncer(integrationId);
+      return this.prisma.integrationAccount.findUnique({
+        where: { id: integrationId },
+        select: SAFE_INTEGRATION_SELECT,
+      });
     }
 
     // Fallback demo sync
@@ -361,6 +383,7 @@ export class IntegrationsService implements OnModuleInit {
         status: 'active',
         errorMessage: null,
       },
+      select: SAFE_INTEGRATION_SELECT,
     });
   }
 }
