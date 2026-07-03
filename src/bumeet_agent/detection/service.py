@@ -81,9 +81,9 @@ class AgentOrchestrator:
         # on the single GATT connection. BleClient owns the authoritative payload.
         self._send_lock = asyncio.Lock()
 
-    _HEARTBEAT_INTERVAL_S: int = 5 * 60   # resend current state every 5 min
-    _MIC_HEARTBEAT_INTERVAL_S: int = 25   # POST /agent/presence every 25 s while mic active
-    _BATTERY_INTERVAL_S: int = 10 * 60   # PATCH /agent/battery every 10 min
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _MIC_HEARTBEAT_INTERVAL_S: int = 25  # POST /agent/presence every 25 s while mic active
+    _BATTERY_INTERVAL_S: int = 10 * 60  # PATCH /agent/battery every 10 min
     _MAX_AUTH_BACKOFF_S: float = 300.0  # cap exponential backoff on repeated 401s
     _API_STALENESS_S: float = (
         15 * 60.0
@@ -119,7 +119,12 @@ class AgentOrchestrator:
             asyncio.create_task(self._report_battery_once())
 
     async def stop_api_polling(self) -> None:
-        for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task, self._battery_task):
+        for task in (
+            self._api_poll_task,
+            self._heartbeat_task,
+            self._mic_heartbeat_task,
+            self._battery_task,
+        ):
             if task and not task.done():
                 task.cancel()
 
@@ -169,14 +174,16 @@ class AgentOrchestrator:
             return
         url = f"{self._api.url}/agent/battery"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.patch(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.patch(
                     url,
                     json={"level": level},
                     headers={"x-agent-key": self._api.token, "Content-Type": "application/json"},
                     timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    logger.debug("Battery reported: %d%% (HTTP %d)", level, resp.status)
+                ) as resp,
+            ):
+                logger.debug("Battery reported: %d%% (HTTP %d)", level, resp.status)
         except (TimeoutError, aiohttp.ClientError) as exc:
             logger.debug("Battery report failed: %s", exc)
 
