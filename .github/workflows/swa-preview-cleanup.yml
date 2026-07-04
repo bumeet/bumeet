@@ -58,8 +58,17 @@ jobs:
           SWA_RG='${{ steps.locate.outputs.swa_rg }}'
           ZONE_RG='${{ steps.locate.outputs.zone_rg }}'
 
-          if az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" --query "[?name=='bumeet.es']" -o tsv | grep -q bumeet; then
-            echo "bumeet.es already registered — checking status only."
+          STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
+                     --query "[?name=='bumeet.es'].status | [0]" -o tsv)
+          if [ "$STATUS" = "Failed" ]; then
+            echo "Existing registration is Failed — deleting it to re-create cleanly."
+            az staticwebapp hostname delete --name "$SWA_NAME" -g "$SWA_RG" \
+              --hostname bumeet.es --yes
+            STATUS=""
+            sleep 10
+          fi
+          if [ -n "$STATUS" ]; then
+            echo "bumeet.es already registered (status: $STATUS) — checking only."
           else
             echo "Registering bumeet.es (dns-txt-token validation)…"
             az staticwebapp hostname set --name "$SWA_NAME" -g "$SWA_RG" \
