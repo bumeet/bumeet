@@ -11,6 +11,14 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches: [main]
+    # Only PRs that actually touch the web app get a preview environment.
+    # Without this filter every PR (dependabot, terraform, firmware…) consumed
+    # one of the 3 staging-environment slots of the Free-tier SWA.
+    paths:
+      - 'platform/apps/web/**'
+      - 'platform/package.json'
+      - 'platform/pnpm-lock.yaml'
+      - '.github/workflows/web-deploy.yml'
   workflow_dispatch:
 
 jobs:
