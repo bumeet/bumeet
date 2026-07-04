@@ -53,6 +53,8 @@ jobs:
           fi
 
       - name: Register apex hostname with TXT validation
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
         run: |
           SWA_NAME='${{ steps.locate.outputs.swa_name }}'
           SWA_RG='${{ steps.locate.outputs.swa_rg }}'
@@ -84,8 +86,25 @@ jobs:
             echo "Creating TXT record _dnsauth.bumeet.es in Azure DNS…"
             az network dns record-set txt add-record -g "$ZONE_RG" -z bumeet.es \
               -n _dnsauth -v "$TOKEN" || true
+          elif [ -n "$TOKEN" ] && [ -n "$HOSTINGER_API_TOKEN" ]; then
+            echo "Creating TXT record _dnsauth.bumeet.es via Hostinger DNS API…"
+            HTTP_CODE=$(curl -sS -o /tmp/hostinger-resp.json -w "%{http_code}" \
+              -X PUT "https://developers.hostinger.com/api/dns/v1/zones/bumeet.es" \
+              -H "Authorization: Bearer $HOSTINGER_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"overwrite\": false, \"zone\": [{\"name\": \"_dnsauth\", \"type\": \"TXT\", \"ttl\": 300, \"records\": [{\"content\": \"$TOKEN\"}]}]}")
+            echo "Hostinger API response: HTTP $HTTP_CODE"
+            cat /tmp/hostinger-resp.json; echo
+            if [ "$HTTP_CODE" -ge 300 ]; then
+              echo "::error::Hostinger API call failed — see response above."
+              exit 1
+            fi
+            echo "Waiting 60 s for DNS propagation…"
+            sleep 60
+            echo "TXT lookup check:"
+            dig +short TXT _dnsauth.bumeet.es || true
           elif [ -n "$TOKEN" ]; then
-            echo "::warning::DNS zone is external. Add this TXT record at the registrar: _dnsauth.bumeet.es = $TOKEN"
+            echo "::warning::DNS zone is external and no HOSTINGER_API_TOKEN secret is set. Add this TXT record manually: _dnsauth.bumeet.es = $TOKEN"
           fi
 
           echo "Polling hostname status (validation + cert can take a few minutes)…"
