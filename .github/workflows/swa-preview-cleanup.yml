@@ -1,28 +1,23 @@
 name: SWA — Clean preview environments
 
-# The dev Static Web App (Free tier) allows only 3 staging environments and
-# web-deploy.yml creates one per PR, so orphaned previews eventually exhaust
-# the quota and every PR deploy fails with "maximum number of staging
-# environments". This workflow deletes all staging environments except the
-# ones listed in `keep` (typically the PRs still open).
+# TEMPORARY (branch-only override): register the apex domain bumeet.es on the
+# production Static Web App so Azure issues a certificate for it. The apex has
+# an A record pointing at the SWA's IP but was never added as a custom domain,
+# so TLS fails. Will be reverted to the cleanup version after running.
 on:
   workflow_dispatch:
     inputs:
       keep:
-        description: "Comma-separated environment names to keep (PR numbers, e.g. 47,46)"
+        description: "(unused in this temporary version)"
         required: false
-        default: "47"
+        default: ""
 
 permissions:
   contents: read
 
-env:
-  RESOURCE_GROUP: rg-bumeet-dev
-  SWA_NAME: swa-bumeet-dev
-
 jobs:
-  cleanup:
-    name: Delete orphaned preview environments
+  fix-apex-domain:
+    name: Register bumeet.es on prod SWA
     runs-on: ubuntu-latest
     steps:
       - name: Azure Login
@@ -30,28 +25,79 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Delete staging environments not in keep list
+      - name: Locate prod SWA and DNS zone
+        id: locate
         run: |
-          KEEP=",${{ github.event.inputs.keep }},"
-          echo "── Environments before cleanup ──"
-          az staticwebapp environment list \
-            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-            --query "[].{name:name, hostname:hostname, status:status}" -o table
+          echo "── All Static Web Apps in subscription:"
+          az staticwebapp list --query "[].{name:name, rg:resourceGroup, host:defaultHostname}" -o table
+          SWA_LINE=$(az staticwebapp list --query "[?contains(defaultHostname, 'polite-grass')].[name, resourceGroup]" -o tsv | head -1)
+          SWA_NAME=$(echo "$SWA_LINE" | cut -f1)
+          SWA_RG=$(echo "$SWA_LINE" | cut -f2)
+          echo "Prod SWA: name='$SWA_NAME' rg='$SWA_RG'"
+          [ -n "$SWA_NAME" ] || { echo "::error::prod SWA not found"; exit 1; }
+          echo "swa_name=$SWA_NAME" >> "$GITHUB_OUTPUT"
+          echo "swa_rg=$SWA_RG"     >> "$GITHUB_OUTPUT"
 
-          for ENV_NAME in $(az staticwebapp environment list \
-              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-              --query "[?name!='default'].name" -o tsv); do
-            if [[ "$KEEP" == *",$ENV_NAME,"* ]]; then
-              echo "⏭  Keeping '$ENV_NAME' (in keep list)"
-              continue
-            fi
-            echo "🗑  Deleting staging environment '$ENV_NAME'"
-            az staticwebapp environment delete \
-              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-              --environment-name "$ENV_NAME" --yes
+          echo "── Current custom domains on prod SWA:"
+          az staticwebapp hostname list --name "$SWA_NAME" --resource-group "$SWA_RG" -o table
+
+          echo "── Azure DNS zones in subscription:"
+          az network dns zone list --query "[].{name:name, rg:resourceGroup}" -o table || true
+          ZONE_RG=$(az network dns zone list --query "[?name=='bumeet.es'].resourceGroup" -o tsv | head -1)
+          echo "zone_rg=$ZONE_RG" >> "$GITHUB_OUTPUT"
+          if [ -n "$ZONE_RG" ]; then
+            echo "── Records in bumeet.es zone:"
+            az network dns record-set list -g "$ZONE_RG" -z bumeet.es --query "[].{name:name, type:type}" -o table
+          else
+            echo "bumeet.es DNS zone is NOT hosted in Azure DNS (external registrar)."
+          fi
+
+      - name: Register apex hostname with TXT validation
+        run: |
+          SWA_NAME='${{ steps.locate.outputs.swa_name }}'
+          SWA_RG='${{ steps.locate.outputs.swa_rg }}'
+          ZONE_RG='${{ steps.locate.outputs.zone_rg }}'
+
+          if az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" --query "[?name=='bumeet.es']" -o tsv | grep -q bumeet; then
+            echo "bumeet.es already registered — checking status only."
+          else
+            echo "Registering bumeet.es (dns-txt-token validation)…"
+            az staticwebapp hostname set --name "$SWA_NAME" -g "$SWA_RG" \
+              --hostname bumeet.es --validation-method dns-txt-token --no-wait
+            sleep 15
+          fi
+
+          TOKEN=$(az staticwebapp hostname show --name "$SWA_NAME" -g "$SWA_RG" \
+                    --hostname bumeet.es --query "validationToken" -o tsv 2>/dev/null || true)
+          echo "Validation token: ${TOKEN:-<none — maybe already validated>}"
+
+          if [ -n "$TOKEN" ] && [ -n "$ZONE_RG" ]; then
+            echo "Creating TXT record _dnsauth.bumeet.es in Azure DNS…"
+            az network dns record-set txt add-record -g "$ZONE_RG" -z bumeet.es \
+              -n _dnsauth -v "$TOKEN" || true
+          elif [ -n "$TOKEN" ]; then
+            echo "::warning::DNS zone is external. Add this TXT record at the registrar: _dnsauth.bumeet.es = $TOKEN"
+          fi
+
+          echo "Polling hostname status (validation + cert can take a few minutes)…"
+          for i in $(seq 1 20); do
+            STATUS=$(az staticwebapp hostname show --name "$SWA_NAME" -g "$SWA_RG" \
+                       --hostname bumeet.es --query "status" -o tsv 2>/dev/null || echo unknown)
+            echo "[$i] status: $STATUS"
+            [ "$STATUS" = "Ready" ] && break
+            sleep 20
           done
 
-          echo "── Environments after cleanup ──"
-          az staticwebapp environment list \
-            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
-            --query "[].{name:name, hostname:hostname, status:status}" -o table
+          echo "── Final custom domain list:"
+          az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" -o table
+
+      - name: Verify TLS on bumeet.es
+        run: |
+          for i in $(seq 1 6); do
+            echo "── attempt $i"
+            if curl -sSI --max-time 15 https://bumeet.es | head -4; then
+              echo "TLS OK ✅"; exit 0
+            fi
+            sleep 30
+          done
+          echo "::warning::bumeet.es TLS still failing — cert issuance may take up to ~15 min after Ready."
