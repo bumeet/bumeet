@@ -11,6 +11,10 @@ on:
         description: "(unused in this temporary version)"
         required: false
         default: ""
+      hostinger_token:
+        description: "Hostinger API token (read from event payload, masked before use, never echoed)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -59,6 +63,17 @@ jobs:
           SWA_NAME='${{ steps.locate.outputs.swa_name }}'
           SWA_RG='${{ steps.locate.outputs.swa_rg }}'
           ZONE_RG='${{ steps.locate.outputs.zone_rg }}'
+
+          # Fallback: token passed as dispatch input. Read it from the event
+          # payload (never interpolated into the script source) and mask it so
+          # it can never appear in the logs.
+          if [ -z "$HOSTINGER_API_TOKEN" ]; then
+            HOSTINGER_API_TOKEN=$(jq -r '.inputs.hostinger_token // empty' "$GITHUB_EVENT_PATH")
+            if [ -n "$HOSTINGER_API_TOKEN" ]; then
+              echo "::add-mask::$HOSTINGER_API_TOKEN"
+              echo "Using Hostinger token from dispatch input (masked)."
+            fi
+          fi
 
           STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
                      --query "[?name=='bumeet.es'].status | [0]" -o tsv)
