@@ -14,10 +14,42 @@ on:
   workflow_dispatch:
 
 jobs:
+  # TEMPORARY (branch-only): diagnose why bumeet.es is unreachable.
+  diagnose:
+    name: Diagnose bumeet.es
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: DNS + HTTP checks
+        run: |
+          for host in bumeet.es www.bumeet.es app.bumeet.es api.bumeet.es polite-grass-0623caf03.7.azurestaticapps.net icy-hill-066964603.2.azurestaticapps.net; do
+            echo "════ $host"
+            echo "-- DNS:"
+            dig +short "$host" A "$host" CNAME || true
+            echo "-- HTTP:"
+            curl -sS -o /tmp/body -D - --max-time 20 "https://$host" 2>&1 | head -12 || true
+            echo "-- Body first lines:"
+            head -c 400 /tmp/body 2>/dev/null | tr -d '\0'; echo
+          done
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: SWA custom domains
+        run: |
+          echo "── PROD SWA custom domains:"
+          az staticwebapp hostname list --name swa-bumeet-prod --resource-group rg-bumeet-prod -o table || true
+          echo "── PROD SWA overview:"
+          az staticwebapp show --name swa-bumeet-prod --resource-group rg-bumeet-prod --query "{defaultHostname:defaultHostname, sku:sku.name, state:provisioningState}" -o table || true
+          echo "── DEV SWA custom domains:"
+          az staticwebapp hostname list --name swa-bumeet-dev --resource-group rg-bumeet-dev -o table || true
+
   build-and-deploy:
     name: Build & Deploy Web
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
 
     steps:
       - uses: actions/checkout@v4
