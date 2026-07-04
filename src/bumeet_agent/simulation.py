@@ -71,12 +71,18 @@ async def run_simulation_session(
         EventTopic.SIMULATION_STARTED.value, scenario=scenario, delay_scale=delay_scale
     )
 
+    # Without the persistent connection nothing ever sets the client's
+    # connected event, so every write_now would block and no payload would
+    # reach the fake BLE client — the simulation would silently test nothing.
+    await container.ble_client.start_persistent_connection()
+
     try:
         await detector.start(orchestrator.handle_snapshot)
+        await orchestrator.wait_for_pending_send()
     finally:
         await detector.stop()
         await container.event_bus.emit(EventTopic.SIMULATION_COMPLETED.value, scenario=scenario)
         await container.event_bus.emit(EventTopic.APP_STOPPING.value)
-        await container.ble_client.disconnect()
+        await container.ble_client.stop_persistent_connection()
 
     return SimulationResult(exit_code=0, container=container, fake_clients=created_clients)

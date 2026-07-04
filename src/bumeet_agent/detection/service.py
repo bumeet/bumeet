@@ -72,6 +72,7 @@ class AgentOrchestrator:
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._mic_heartbeat_task: asyncio.Task[None] | None = None
         self._battery_task: asyncio.Task[None] | None = None
+        self._battery_once_task: asyncio.Task[None] | None = None
         self._last_api_busy: bool = False
         self._last_api_upcoming: bool = False
         self._last_hw_busy: bool = False
@@ -81,9 +82,9 @@ class AgentOrchestrator:
         # on the single GATT connection. BleClient owns the authoritative payload.
         self._send_lock = asyncio.Lock()
 
-    _HEARTBEAT_INTERVAL_S: int = 5 * 60   # resend current state every 5 min
-    _MIC_HEARTBEAT_INTERVAL_S: int = 25   # POST /agent/presence every 25 s while mic active
-    _BATTERY_INTERVAL_S: int = 10 * 60   # PATCH /agent/battery every 10 min
+    _HEARTBEAT_INTERVAL_S: int = 5 * 60  # resend current state every 5 min
+    _MIC_HEARTBEAT_INTERVAL_S: int = 25  # POST /agent/presence every 25 s while mic active
+    _BATTERY_INTERVAL_S: int = 10 * 60  # PATCH /agent/battery every 10 min
     _MAX_AUTH_BACKOFF_S: float = 300.0  # cap exponential backoff on repeated 401s
     _API_STALENESS_S: float = (
         15 * 60.0
@@ -98,6 +99,19 @@ class AgentOrchestrator:
         if exc is not None:
             logger.warning("BLE send task failed: %s", exc)
 
+    @staticmethod
+    def _log_loop_exit(task: asyncio.Task[None]) -> None:
+        """Done-callback: a background loop should only ever end by cancellation.
+
+        Anything else means the agent silently lost API polling / heartbeats —
+        make that loud instead of a 'task exception never retrieved' at GC time.
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error("Background loop %s died: %s", task.get_name(), exc)
+
     async def _send(self, payload: bytes) -> None:
         async with self._send_lock:
             await self._ble_client.write_now(payload)
@@ -106,20 +120,36 @@ class AgentOrchestrator:
         """Poll /integrations/live-status on interval and push to CoreInk."""
         if not self._api or not self._api.is_configured:
             return
-        self._api_poll_task = asyncio.create_task(self._api_poll_loop())
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        self._mic_heartbeat_task = asyncio.create_task(self._mic_heartbeat_loop())
-        self._battery_task = asyncio.create_task(self._battery_report_loop())
+        self._api_poll_task = asyncio.create_task(self._api_poll_loop(), name="api-poll")
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(), name="ble-heartbeat")
+        self._mic_heartbeat_task = asyncio.create_task(
+            self._mic_heartbeat_loop(), name="mic-heartbeat"
+        )
+        self._battery_task = asyncio.create_task(self._battery_report_loop(), name="battery")
+        for task in (
+            self._api_poll_task,
+            self._heartbeat_task,
+            self._mic_heartbeat_task,
+            self._battery_task,
+        ):
+            task.add_done_callback(self._log_loop_exit)
         await self._event_bus.subscribe(EventTopic.BLE_CONNECTED.value, self._on_ble_connected)
 
     async def _on_ble_connected(self, event: AgentEvent) -> None:
         """Resync display state and read battery after every BLE connect/reconnect."""
         await self._push_combined_state()
         if self._api and self._api.is_configured:
-            asyncio.create_task(self._report_battery_once())
+            # Keep a reference so the task can't be garbage-collected mid-flight.
+            self._battery_once_task = asyncio.create_task(self._report_battery_once())
+            self._battery_once_task.add_done_callback(self._log_send_exc)
 
     async def stop_api_polling(self) -> None:
-        for task in (self._api_poll_task, self._heartbeat_task, self._mic_heartbeat_task, self._battery_task):
+        for task in (
+            self._api_poll_task,
+            self._heartbeat_task,
+            self._mic_heartbeat_task,
+            self._battery_task,
+        ):
             if task and not task.done():
                 task.cancel()
 
@@ -169,14 +199,16 @@ class AgentOrchestrator:
             return
         url = f"{self._api.url}/agent/battery"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.patch(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.patch(
                     url,
                     json={"level": level},
                     headers={"x-agent-key": self._api.token, "Content-Type": "application/json"},
                     timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    logger.debug("Battery reported: %d%% (HTTP %d)", level, resp.status)
+                ) as resp,
+            ):
+                logger.debug("Battery reported: %d%% (HTTP %d)", level, resp.status)
         except (TimeoutError, aiohttp.ClientError) as exc:
             logger.debug("Battery report failed: %s", exc)
 
@@ -207,8 +239,11 @@ class AgentOrchestrator:
                             if retry_after.isdigit():
                                 sleep_for = min(self._MAX_AUTH_BACKOFF_S, float(retry_after))
                             else:
+                                # Cap the exponent: unchecked, 2**n overflows float
+                                # after ~1075 consecutive 401s and kills the loop.
                                 sleep_for = min(
-                                    self._MAX_AUTH_BACKOFF_S, interval * (2**auth_failures)
+                                    self._MAX_AUTH_BACKOFF_S,
+                                    interval * (2 ** min(auth_failures, 16)),
                                 )
                             logger.warning(
                                 "API token rejected (401) — calendar/Slack integration "
@@ -233,8 +268,12 @@ class AgentOrchestrator:
                                 self._last_api_busy = effective_busy
                                 self._last_api_upcoming = upcoming
                                 await self._push_combined_state(api_data=data)
-                except (TimeoutError, aiohttp.ClientError):
-                    pass
+                except (TimeoutError, aiohttp.ClientError) as exc:
+                    logger.debug("live-status poll failed: %s", exc)
+                except Exception:
+                    # e.g. malformed JSON from a captive portal or proxy. Anything
+                    # unexpected must not kill the poll loop for the whole session.
+                    logger.exception("Unexpected error in live-status poll")
                 await asyncio.sleep(sleep_for)
 
     async def _push_combined_state(self, api_data: dict[str, Any] | None = None) -> None:
@@ -255,7 +294,7 @@ class AgentOrchestrator:
             # payload field from live-status is the ready-to-send string
             # (e.g. "BUSY · Slack", "UPCOMING · Google Calendar · starts 14:30")
             raw: str = effective_api.get("payload") or (
-                "BUSY" if effective_api.get("busy") else "FREE"
+                "BUSY" if effective_api.get("busy") else "UPCOMING"
             )
             payload = raw.encode("utf-8")
         else:
@@ -265,6 +304,12 @@ class AgentOrchestrator:
         # serializes this after any pending write. BleClient tracks the payload.
         self._pending_send = asyncio.create_task(self._send(payload))
         self._pending_send.add_done_callback(self._log_send_exc)
+
+    async def wait_for_pending_send(self) -> None:
+        """Await the newest BLE push. The send lock is FIFO, so once the newest
+        task finishes every earlier queued write has already completed."""
+        if self._pending_send and not self._pending_send.done():
+            await self._pending_send
 
     async def handle_snapshot(self, snapshot: HardwareSnapshot) -> None:
         await self._event_bus.emit(

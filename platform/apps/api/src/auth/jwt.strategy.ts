@@ -28,6 +28,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Carry the sessionId so logout/password-change can target the exact session.
-    return { ...session.user, sessionId: session.id };
+    // Never spread the raw User row: it contains passwordHash and agentToken,
+    // and /auth/me returns req.user verbatim to the browser.
+    const { user } = session;
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      timezone: user.timezone,
+      language: user.language,
+      batteryLevel: user.batteryLevel,
+      batteryUpdatedAt: user.batteryUpdatedAt,
+      bleDeviceAddress: user.bleDeviceAddress,
+      bleCharacteristicUuid: user.bleCharacteristicUuid,
+      createdAt: user.createdAt,
+      sessionId: session.id,
+    };
   }
 }

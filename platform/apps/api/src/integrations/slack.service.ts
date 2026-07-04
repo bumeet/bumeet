@@ -7,6 +7,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { providerFetch } from './http';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -141,7 +142,7 @@ export class SlackService {
 
   private async fetchImMessages(accessToken: string, oldest: string) {
     // List DM conversations first
-    const convRes = await fetch(`${this.API_URL}/conversations.list?types=im&limit=5`, {
+    const convRes = await providerFetch(`${this.API_URL}/conversations.list?types=im&limit=5`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const convData = await convRes.json();
@@ -154,7 +155,7 @@ export class SlackService {
     const allMessages: any[] = [];
 
     for (const channel of channels.slice(0, 3)) {
-      const histRes = await fetch(
+      const histRes = await providerFetch(
         `${this.API_URL}/conversations.history?channel=${channel.id}&oldest=${oldest}&limit=100`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
@@ -166,7 +167,7 @@ export class SlackService {
   }
 
   private async exchangeCode(code: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -191,10 +192,10 @@ export class SlackService {
 
     // Fetch profile (status emoji/text) and user presence (active/away) in parallel
     const [profileData, presenceData] = await Promise.all([
-      fetch(`${this.API_URL}/users.profile.get`, {
+      providerFetch(`${this.API_URL}/users.profile.get`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }).then((r) => r.json()),
-      fetch(`${this.API_URL}/users.getPresence`, {
+      providerFetch(`${this.API_URL}/users.getPresence`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }).then((r) => r.json()),
     ]);

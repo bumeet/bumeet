@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { providerFetch } from './http';
 import { PrismaService } from '../prisma/prisma.service';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -78,7 +79,7 @@ export class WebexService {
 
     const accessToken = await this.getValidToken(integration);
 
-    const res = await fetch(`${this.API_URL}/people/me`, {
+    const res = await providerFetch(`${this.API_URL}/people/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -116,7 +117,7 @@ export class WebexService {
         max: String(max),
         start: String(start),
       });
-      const res = await fetch(`${this.API_URL}/meetings?${params}`, {
+      const res = await providerFetch(`${this.API_URL}/meetings?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -190,7 +191,7 @@ export class WebexService {
   }
 
   private async exchangeCode(code: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -206,7 +207,7 @@ export class WebexService {
   }
 
   private async refreshToken(refreshToken: string) {
-    const res = await fetch(this.TOKEN_URL, {
+    const res = await providerFetch(this.TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -221,7 +222,7 @@ export class WebexService {
   }
 
   private async getProfile(accessToken: string) {
-    const res = await fetch(`${this.API_URL}/people/me`, {
+    const res = await providerFetch(`${this.API_URL}/people/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) throw new Error(`Webex profile fetch failed: ${await res.text()}`);

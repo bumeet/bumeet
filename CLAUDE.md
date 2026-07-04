@@ -116,7 +116,7 @@ NestJS modules under `src/` (imported by `app.module.ts`): `auth`, `users`, `int
 ### Firmware (`firmware/coreink/coreink.ino`) — the BLE contract
 NimBLE GATT **server** that the agent writes to. UUIDs must match `BleSettings` on the agent:
 - Service `a1b2c3d4-e5f6-7890-abcd-ef1234567891`
-- Status characteristic `a1b2c3d4-e5f6-7890-abcd-ef1234567892` (WRITE / WRITE_AUTHEN, ≤64 bytes UTF-8)
+- Status characteristic `a1b2c3d4-e5f6-7890-abcd-ef1234567892` (WRITE / WRITE_NR, unauthenticated, ≤64 bytes UTF-8)
 - Battery service `0x180F` / characteristic `0x2A19` (READ/NOTIFY)
 
 It parses the UTF-8 payload (`FREE` / `BUSY` / `UPCOMING`, optional ` · source · detail`) and renders via `renderFree/renderBusy/renderUpcoming`. Power-managed (CPU throttling, ~1s BLE interval), persists last message to NVS, and auto-clears BUSY after 5 min without a connection.

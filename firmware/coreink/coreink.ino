@@ -10,7 +10,8 @@
  * ─── BLE identifiers ─────────────────────────────────────────────────────────
  *   Device name:         BUMEET
  *   Service UUID:        a1b2c3d4-e5f6-7890-abcd-ef1234567891
- *   Characteristic UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567892  (WRITE | WRITE_AUTHEN)
+ *   Characteristic UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567892  (WRITE | WRITE_NR — sin
+ *                        autenticación: cualquier central en rango puede escribir)
  *   Battery Service:     0x180F  (estándar BLE)
  *   Battery Char:        0x2A19  (READ | NOTIFY)
  *
@@ -67,7 +68,7 @@ static String                gCurrentMsg;        // último estado mostrado en p
 static String                gPendingMsg;        // mensaje recibido por BLE, pendiente de render
 static String                gLastPersistedMsg;  // último valor escrito en NVS
 static volatile bool         gNeedsRedraw    = false;
-static bool                  gConnected      = false;
+static volatile bool         gConnected      = false;  // escrito por el task BLE, leído por el loop
 static volatile bool         gNeedAdvRestart = false;  // onDisconnect lo activa; el loop reanuda advertising
 static unsigned long         gDisconnectedMs = 0;  // millis() cuando se perdió la última conexión
 static NimBLECharacteristic* pBattChar       = nullptr;
@@ -85,16 +86,23 @@ static int16_t centerX(const String& text, uint8_t sz) {
     return x > 0 ? x : 0;
 }
 
+// Longitudes en BYTES de los separadores UTF-8: '·' (U+00B7) ocupa 2 bytes
+// (0xC2 0xB7), así que " · " son 4 bytes — usar 3 dejaba un espacio inicial en
+// src/detail y convertía las ramas startsWith() en código muerto.
+static const int SEP_LEN        = 4;   // " · "
+static const int SEP_ENDS_LEN   = 9;   // " · ends "
+static const int SEP_STARTS_LEN = 11;  // " · starts "
+
 static void parsePayload(const String& msg, String& hdr, String& src, String& detail) {
     hdr = src = detail = "";
     int s1 = msg.indexOf(" · ");
     if (s1 < 0) { hdr = msg; return; }
     hdr = msg.substring(0, s1);
-    String rest = msg.substring(s1 + 3);
+    String rest = msg.substring(s1 + SEP_LEN);
     int s2 = rest.indexOf(" · ends ");
-    if (s2 >= 0) { src = rest.substring(0, s2); detail = "ends " + rest.substring(s2 + 8); return; }
+    if (s2 >= 0) { src = rest.substring(0, s2); detail = "ends " + rest.substring(s2 + SEP_ENDS_LEN); return; }
     int s3 = rest.indexOf(" · starts ");
-    if (s3 >= 0) { src = rest.substring(0, s3); detail = "starts " + rest.substring(s3 + 10); return; }
+    if (s3 >= 0) { src = rest.substring(0, s3); detail = "starts " + rest.substring(s3 + SEP_STARTS_LEN); return; }
     if (rest.startsWith("starts ") || rest.startsWith("ends ")) { detail = rest; } else { src = rest; }
 }
 
@@ -184,8 +192,11 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         // No reanudamos advertising aquí — solo en onDisconnect
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
-        gConnected      = false;
+        // Escribir el timestamp ANTES del flag: si el loop viera gConnected=false
+        // con el gDisconnectedMs de la desconexión anterior (>5 min), dispararía
+        // el auto-FREE al instante y borraría un BUSY legítimo.
         gDisconnectedMs = millis();  // arrancar el contador para auto-FREE
+        gConnected      = false;
         gNeedAdvRestart = true;      // el loop (single-threaded) reanuda advertising
         if (gMainTask) xTaskNotifyGive(gMainTask);  // despertar el loop para recalcular timeout
     }

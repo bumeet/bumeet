@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'date-fns';
+import { format, startOfWeek, addDays, addWeeks, subWeeks, addMonths, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,7 @@ export default function CalendarPage() {
   const navigate = (dir: 1 | -1) => {
     if (view === 'week') setCurrentDate(dir === 1 ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1));
     else if (view === 'day') setCurrentDate(addDays(currentDate, dir));
-    else setCurrentDate(addDays(currentDate, dir * 30));
+    else setCurrentDate(addMonths(currentDate, dir));
   };
 
   return (
@@ -208,7 +208,7 @@ function WeekView({ weekDays, hours, getEventsForDay, getEventTopPercent, getEve
         <div>
           {hours.map((h: number) => (
             <div key={h} style={{ height: totalHeight / hours.length }} className="flex items-start justify-end pr-2 pt-1">
-              <span className="text-xs text-gray-400">{h <= 12 ? `${h}am` : `${h - 12}pm`}</span>
+              <span className="text-xs text-gray-400">{h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`}</span>
             </div>
           ))}
         </div>
@@ -251,7 +251,7 @@ function DayView({ day, hours, events, getEventTopPercent, getEventHeightPercent
         <div>
           {hours.map((h: number) => (
             <div key={h} style={{ height: totalHeight / hours.length }} className="flex items-start justify-end pr-2 pt-1">
-              <span className="text-xs text-gray-400">{h <= 12 ? `${h}am` : `${h - 12}pm`}</span>
+              <span className="text-xs text-gray-400">{h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`}</span>
             </div>
           ))}
         </div>

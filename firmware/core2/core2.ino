@@ -22,6 +22,7 @@
  *   "BUSY"
  *   "BUSY · Slack"
  *   "BUSY · Google Calendar · ends 15:30"
+ *   "UPCOMING · Google Calendar · starts 15:00"
  *
  * ─── Arduino setup ───────────────────────────────────────────────────────────
  *   Board manager URL: https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/arduino/package_m5stack_index.json
@@ -83,26 +84,41 @@ static int16_t centerX(const String& text, uint8_t textSize) {
     return x > 0 ? x : 0;
 }
 
+// Longitudes en BYTES de los separadores UTF-8: '·' (U+00B7) ocupa 2 bytes
+// (0xC2 0xB7), así que " · " son 4 bytes — usar 3 dejaba un espacio inicial en
+// source/detail y convertía la rama startsWith() en código muerto.
+static const int SEP_LEN        = 4;   // " · "
+static const int SEP_ENDS_LEN   = 9;   // " · ends "
+static const int SEP_STARTS_LEN = 11;  // " · starts "
+
 static void parsePayload(const String& msg,
                           String& header,
                           String& source,
-                          String& endTime) {
-    header  = "";
-    source  = "";
-    endTime = "";
+                          String& detail) {
+    header = "";
+    source = "";
+    detail = "";
 
     int sep1 = msg.indexOf(" · ");
     if (sep1 < 0) { header = msg; return; }
 
     header      = msg.substring(0, sep1);
-    String rest = msg.substring(sep1 + 3);
+    String rest = msg.substring(sep1 + SEP_LEN);
 
     int sep2 = rest.indexOf(" · ends ");
     if (sep2 >= 0) {
-        source  = rest.substring(0, sep2);
-        endTime = "ends " + rest.substring(sep2 + 8);
-    } else if (rest.startsWith("ends ")) {
-        endTime = rest;
+        source = rest.substring(0, sep2);
+        detail = "ends " + rest.substring(sep2 + SEP_ENDS_LEN);
+        return;
+    }
+    int sep3 = rest.indexOf(" · starts ");
+    if (sep3 >= 0) {
+        source = rest.substring(0, sep3);
+        detail = "starts " + rest.substring(sep3 + SEP_STARTS_LEN);
+        return;
+    }
+    if (rest.startsWith("ends ") || rest.startsWith("starts ")) {
+        detail = rest;
     } else {
         source = rest;
     }
@@ -147,12 +163,41 @@ static void renderBusy(const String& source, const String& endTime) {
     }
 }
 
+static void renderUpcoming(const String& source, const String& detail) {
+    M5.Display.fillScreen(TFT_WHITE);
+
+    // Banda oscura central, como en el CoreInk: reunión inminente, aún libre.
+    M5.Display.fillRect(0, 60, SCREEN_W, 80, TFT_BLACK);
+    M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+    M5.Display.setTextSize(5);
+    M5.Display.setCursor(centerX("SOON", 5), 82);
+    M5.Display.print("SOON");
+
+    M5.Display.setTextColor(TFT_BLACK, TFT_WHITE);
+    int16_t yPos = 160;
+    if (source.length() > 0) {
+        M5.Display.setTextSize(3);
+        M5.Display.setCursor(centerX(source, 3), yPos);
+        M5.Display.print(source);
+        yPos += 38;
+    }
+    if (detail.length() > 0) {
+        M5.Display.setTextSize(3);
+        M5.Display.setCursor(centerX(detail, 3), yPos);
+        M5.Display.print(detail);
+    }
+}
+
 static void renderMessage(const String& msg) {
-    String header, source, endTime;
-    parsePayload(msg, header, source, endTime);
+    String header, source, detail;
+    parsePayload(msg, header, source, detail);
 
     if (header == "BUSY") {
-        renderBusy(source, endTime);
+        renderBusy(source, detail);
+    } else if (header == "UPCOMING") {
+        // Antes UPCOMING caía en renderFree(): la pantalla decía FREE con una
+        // reunión a punto de empezar — la señal exactamente contraria.
+        renderUpcoming(source, detail);
     } else {
         renderFree();
     }
@@ -175,8 +220,11 @@ class ServerCallbacks : public NimBLEServerCallbacks {
         );
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
-        gConnected      = false;
+        // Timestamp ANTES del flag: si el loop viera gConnected=false con el
+        // gDisconnectedMs de la desconexión anterior, dispararía el auto-FREE
+        // al instante y borraría un BUSY legítimo.
         gDisconnectedMs = millis();
+        gConnected      = false;
         NimBLEDevice::getAdvertising()->start();
         if (gMainTask) xTaskNotifyGive(gMainTask);  // recalcular timeout auto-FREE
     }

@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const DEFAULT_CHAR_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567892';
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 type Platform = 'macos' | 'windows';
 

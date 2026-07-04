@@ -152,8 +152,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install arduino-cli
+        # install.sh defaults to $PWD/bin — pin BINDIR so the binary lands where
+        # the PATH entry below actually points.
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR="$HOME/bin" sh
           echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Add M5Stack board index
@@ -172,11 +175,17 @@ jobs:
           arduino-cli lib install "M5Unified"
           arduino-cli lib install "NimBLE-Arduino"
 
-      - name: Compile
+      - name: Compile CoreInk
         run: |
           arduino-cli compile \
             --fqbn m5stack:esp32:m5stack_coreink:PartitionScheme=huge_app \
             firmware/coreink/coreink.ino
+
+      - name: Compile Core2
+        run: |
+          arduino-cli compile \
+            --fqbn m5stack:esp32:m5stack_core2:PartitionScheme=huge_app \
+            firmware/core2/core2.ino
 
   # ── Terraform ────────────────────────────────────────────────────────────────
   terraform:
