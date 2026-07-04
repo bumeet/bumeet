@@ -110,16 +110,29 @@ jobs:
               -d "{\"overwrite\": false, \"zone\": [{\"name\": \"_dnsauth\", \"type\": \"TXT\", \"ttl\": 300, \"records\": [{\"content\": \"$TOKEN\"}]}]}")
             echo "Hostinger API response: HTTP $HTTP_CODE"
             cat /tmp/hostinger-resp.json; echo
-            if [ "$HTTP_CODE" -ge 300 ]; then
+            if [ "$HTTP_CODE" = "422" ]; then
+              echo "::warning::422 — record likely already exists; continuing."
+            elif [ "$HTTP_CODE" -ge 300 ]; then
               echo "::error::Hostinger API call failed — see response above."
               exit 1
+            else
+              echo "Waiting 60 s for DNS propagation…"
+              sleep 60
             fi
-            echo "Waiting 60 s for DNS propagation…"
-            sleep 60
-            echo "TXT lookup check:"
-            dig +short TXT _dnsauth.bumeet.es || true
           elif [ -n "$TOKEN" ]; then
             echo "::warning::DNS zone is external and no HOSTINGER_API_TOKEN secret is set. Add this TXT record manually: _dnsauth.bumeet.es = $TOKEN"
+          fi
+
+          echo "── DNS diagnostics for _dnsauth.bumeet.es ──"
+          echo "Public resolver:"
+          dig +short TXT _dnsauth.bumeet.es || true
+          NS=$(dig +short NS bumeet.es | head -1)
+          echo "Authoritative NS: ${NS:-<none found>}"
+          if [ -n "$NS" ]; then
+            echo "Authoritative answer:"
+            dig +short TXT _dnsauth.bumeet.es "@$NS" || true
+            echo "All records visible at apex (authoritative):"
+            dig +short TXT bumeet.es "@$NS" || true
           fi
 
           echo "Polling hostname status (validation + cert can take a few minutes)…"
@@ -138,7 +151,8 @@ jobs:
         run: |
           for i in $(seq 1 6); do
             echo "── attempt $i"
-            if curl -sSI --max-time 15 https://bumeet.es | head -4; then
+            if curl -sS --max-time 15 -o /dev/null -D /tmp/headers https://bumeet.es; then
+              head -4 /tmp/headers
               echo "TLS OK ✅"; exit 0
             fi
             sleep 30
