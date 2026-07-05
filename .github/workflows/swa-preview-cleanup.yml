@@ -19,6 +19,10 @@ on:
         description: "Cloudflare API token with Zone.DNS edit on bumeet.es (masked before use, never echoed)"
         required: false
         default: ""
+      force_recreate:
+        description: "Delete and re-create the bumeet.es registration even if not Failed (unsticks a stuck Validating state)"
+        required: false
+        default: "false"
 
 permissions:
   contents: read
@@ -92,8 +96,9 @@ jobs:
 
           STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
                      --query "[?name=='bumeet.es'].status | [0]" -o tsv)
-          if [ "$STATUS" = "Failed" ]; then
-            echo "Existing registration is Failed — deleting it to re-create cleanly."
+          FORCE='${{ github.event.inputs.force_recreate }}'
+          if [ -n "$STATUS" ] && [ "$STATUS" != "Ready" ] && { [ "$STATUS" = "Failed" ] || [ "$FORCE" = "true" ]; }; then
+            echo "Existing registration is $STATUS — deleting it to re-create cleanly."
             az staticwebapp hostname delete --name "$SWA_NAME" -g "$SWA_RG" \
               --hostname bumeet.es --yes
             STATUS=""
