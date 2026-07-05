@@ -15,6 +15,10 @@ on:
         description: "Hostinger API token (read from event payload, masked before use, never echoed)"
         required: false
         default: ""
+      cf_token:
+        description: "Cloudflare API token with Zone.DNS edit on bumeet.es (masked before use, never echoed)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -74,6 +78,11 @@ jobs:
               echo "Using Hostinger token from dispatch input (masked)."
             fi
           fi
+          CF_API_TOKEN=$(jq -r '.inputs.cf_token // empty' "$GITHUB_EVENT_PATH")
+          if [ -n "$CF_API_TOKEN" ]; then
+            echo "::add-mask::$CF_API_TOKEN"
+            echo "Using Cloudflare token from dispatch input (masked)."
+          fi
 
           STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
                      --query "[?name=='bumeet.es'].status | [0]" -o tsv)
@@ -97,7 +106,38 @@ jobs:
                     --hostname bumeet.es --query "validationToken" -o tsv 2>/dev/null || true)
           echo "Validation token: ${TOKEN:-<none — maybe already validated>}"
 
-          if [ -n "$TOKEN" ] && [ -n "$ZONE_RG" ]; then
+          if [ -n "$TOKEN" ] && [ -n "$CF_API_TOKEN" ]; then
+            # The authoritative DNS for bumeet.es lives in Cloudflare (the domain
+            # is registered at Hostinger but delegated to Cloudflare nameservers).
+            echo "Creating TXT record _dnsauth.bumeet.es via Cloudflare API…"
+            ZONE_ID=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones?name=bumeet.es" | jq -r '.result[0].id // empty')
+            echo "Cloudflare zone id: ${ZONE_ID:-<not found>}"
+            [ -n "$ZONE_ID" ] || { echo "::error::zone not found or token lacks permission"; exit 1; }
+
+            EXISTING=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=TXT&name=_dnsauth.bumeet.es" \
+              | jq -r '.result[0].id // empty')
+            BODY="{\"type\":\"TXT\",\"name\":\"_dnsauth.bumeet.es\",\"content\":\"$TOKEN\",\"ttl\":300}"
+            if [ -n "$EXISTING" ]; then
+              echo "TXT record exists — updating it."
+              HTTP_CODE=$(curl -sS -o /tmp/cf.json -w "%{http_code}" -X PUT \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$EXISTING" \
+                -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" -d "$BODY")
+            else
+              HTTP_CODE=$(curl -sS -o /tmp/cf.json -w "%{http_code}" -X POST \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+                -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" -d "$BODY")
+            fi
+            echo "Cloudflare API: HTTP $HTTP_CODE"
+            jq -c '{success, errors}' /tmp/cf.json || cat /tmp/cf.json
+            if [ "$HTTP_CODE" -ge 300 ]; then
+              echo "::error::Cloudflare API call failed — see response above."
+              exit 1
+            fi
+            echo "Waiting 30 s for propagation (Cloudflare is fast)…"
+            sleep 30
+          elif [ -n "$TOKEN" ] && [ -n "$ZONE_RG" ]; then
             echo "Creating TXT record _dnsauth.bumeet.es in Azure DNS…"
             az network dns record-set txt add-record -g "$ZONE_RG" -z bumeet.es \
               -n _dnsauth -v "$TOKEN" || true
