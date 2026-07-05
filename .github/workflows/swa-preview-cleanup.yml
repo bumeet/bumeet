@@ -1,35 +1,28 @@
 name: SWA — Clean preview environments
 
-# TEMPORARY (branch-only override): register the apex domain bumeet.es on the
-# production Static Web App so Azure issues a certificate for it. The apex has
-# an A record pointing at the SWA's IP but was never added as a custom domain,
-# so TLS fails. Will be reverted to the cleanup version after running.
+# The dev Static Web App (Free tier) allows only 3 staging environments and
+# web-deploy.yml creates one per PR, so orphaned previews eventually exhaust
+# the quota and every PR deploy fails with "maximum number of staging
+# environments". This workflow deletes all staging environments except the
+# ones listed in `keep` (typically the PRs still open).
 on:
   workflow_dispatch:
     inputs:
       keep:
-        description: "(unused in this temporary version)"
+        description: "Comma-separated environment names to keep (PR numbers, e.g. 47,46)"
         required: false
-        default: ""
-      hostinger_token:
-        description: "Hostinger API token (read from event payload, masked before use, never echoed)"
-        required: false
-        default: ""
-      cf_token:
-        description: "Cloudflare API token with Zone.DNS edit on bumeet.es (masked before use, never echoed)"
-        required: false
-        default: ""
-      force_recreate:
-        description: "Delete and re-create the bumeet.es registration even if not Failed (unsticks a stuck Validating state)"
-        required: false
-        default: "false"
+        default: "47"
 
 permissions:
   contents: read
 
+env:
+  RESOURCE_GROUP: rg-bumeet-dev
+  SWA_NAME: swa-bumeet-dev
+
 jobs:
-  fix-apex-domain:
-    name: Register bumeet.es on prod SWA
+  cleanup:
+    name: Delete orphaned preview environments
     runs-on: ubuntu-latest
     steps:
       - name: Azure Login
@@ -37,177 +30,28 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Locate prod SWA and DNS zone
-        id: locate
+      - name: Delete staging environments not in keep list
         run: |
-          echo "── All Static Web Apps in subscription:"
-          az staticwebapp list --query "[].{name:name, rg:resourceGroup, host:defaultHostname}" -o table
-          SWA_LINE=$(az staticwebapp list --query "[?contains(defaultHostname, 'polite-grass')].[name, resourceGroup]" -o tsv | head -1)
-          SWA_NAME=$(echo "$SWA_LINE" | cut -f1)
-          SWA_RG=$(echo "$SWA_LINE" | cut -f2)
-          echo "Prod SWA: name='$SWA_NAME' rg='$SWA_RG'"
-          [ -n "$SWA_NAME" ] || { echo "::error::prod SWA not found"; exit 1; }
-          echo "swa_name=$SWA_NAME" >> "$GITHUB_OUTPUT"
-          echo "swa_rg=$SWA_RG"     >> "$GITHUB_OUTPUT"
+          KEEP=",${{ github.event.inputs.keep }},"
+          echo "── Environments before cleanup ──"
+          az staticwebapp environment list \
+            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query "[].{name:name, hostname:hostname, status:status}" -o table
 
-          echo "── Current custom domains on prod SWA:"
-          az staticwebapp hostname list --name "$SWA_NAME" --resource-group "$SWA_RG" -o table
-
-          echo "── Azure DNS zones in subscription:"
-          az network dns zone list --query "[].{name:name, rg:resourceGroup}" -o table || true
-          ZONE_RG=$(az network dns zone list --query "[?name=='bumeet.es'].resourceGroup" -o tsv | head -1)
-          echo "zone_rg=$ZONE_RG" >> "$GITHUB_OUTPUT"
-          if [ -n "$ZONE_RG" ]; then
-            echo "── Records in bumeet.es zone:"
-            az network dns record-set list -g "$ZONE_RG" -z bumeet.es --query "[].{name:name, type:type}" -o table
-          else
-            echo "bumeet.es DNS zone is NOT hosted in Azure DNS (external registrar)."
-          fi
-
-      - name: Register apex hostname with TXT validation
-        env:
-          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
-          CF_API_TOKEN_SECRET: ${{ secrets.CF_API_TOKEN }}
-        run: |
-          SWA_NAME='${{ steps.locate.outputs.swa_name }}'
-          SWA_RG='${{ steps.locate.outputs.swa_rg }}'
-          ZONE_RG='${{ steps.locate.outputs.zone_rg }}'
-
-          # Fallback: token passed as dispatch input. Read it from the event
-          # payload (never interpolated into the script source) and mask it so
-          # it can never appear in the logs.
-          if [ -z "$HOSTINGER_API_TOKEN" ]; then
-            HOSTINGER_API_TOKEN=$(jq -r '.inputs.hostinger_token // empty' "$GITHUB_EVENT_PATH")
-            if [ -n "$HOSTINGER_API_TOKEN" ]; then
-              echo "::add-mask::$HOSTINGER_API_TOKEN"
-              echo "Using Hostinger token from dispatch input (masked)."
+          for ENV_NAME in $(az staticwebapp environment list \
+              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
+              --query "[?name!='default'].name" -o tsv); do
+            if [[ "$KEEP" == *",$ENV_NAME,"* ]]; then
+              echo "⏭  Keeping '$ENV_NAME' (in keep list)"
+              continue
             fi
-          fi
-          CF_API_TOKEN="${CF_API_TOKEN_SECRET:-}"
-          if [ -n "$CF_API_TOKEN" ]; then
-            echo "Using Cloudflare token from CF_API_TOKEN repository secret."
-          else
-            CF_API_TOKEN=$(jq -r '.inputs.cf_token // empty' "$GITHUB_EVENT_PATH")
-            if [ -n "$CF_API_TOKEN" ]; then
-              echo "::add-mask::$CF_API_TOKEN"
-              echo "Using Cloudflare token from dispatch input (masked)."
-            fi
-          fi
-
-          STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
-                     --query "[?name=='bumeet.es'].status | [0]" -o tsv)
-          FORCE='${{ github.event.inputs.force_recreate }}'
-          if [ -n "$STATUS" ] && [ "$STATUS" != "Ready" ] && { [ "$STATUS" = "Failed" ] || [ "$FORCE" = "true" ]; }; then
-            echo "Existing registration is $STATUS — deleting it to re-create cleanly."
-            az staticwebapp hostname delete --name "$SWA_NAME" -g "$SWA_RG" \
-              --hostname bumeet.es --yes
-            STATUS=""
-            sleep 10
-          fi
-          if [ "$STATUS" = "Ready" ]; then
-            echo "bumeet.es already Ready — nothing to do."
-          else
-            # Re-issuing hostname set on a stuck 'Validating' registration nudges
-            # Azure to re-run the TXT validation now that the record exists.
-            echo "(Re)registering bumeet.es (dns-txt-token validation)…"
-            az staticwebapp hostname set --name "$SWA_NAME" -g "$SWA_RG" \
-              --hostname bumeet.es --validation-method dns-txt-token --no-wait
-            sleep 15
-          fi
-
-          TOKEN=$(az staticwebapp hostname show --name "$SWA_NAME" -g "$SWA_RG" \
-                    --hostname bumeet.es --query "validationToken" -o tsv 2>/dev/null || true)
-          echo "Validation token: ${TOKEN:-<none — maybe already validated>}"
-
-          if [ -n "$TOKEN" ] && [ -n "$CF_API_TOKEN" ]; then
-            # The authoritative DNS for bumeet.es lives in Cloudflare (the domain
-            # is registered at Hostinger but delegated to Cloudflare nameservers).
-            echo "Creating TXT record _dnsauth.bumeet.es via Cloudflare API…"
-            ZONE_ID=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/zones?name=bumeet.es" | jq -r '.result[0].id // empty')
-            echo "Cloudflare zone id: ${ZONE_ID:-<not found>}"
-            [ -n "$ZONE_ID" ] || { echo "::error::zone not found or token lacks permission"; exit 1; }
-
-            EXISTING=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=TXT&name=_dnsauth.bumeet.es" \
-              | jq -r '.result[0].id // empty')
-            BODY="{\"type\":\"TXT\",\"name\":\"_dnsauth.bumeet.es\",\"content\":\"$TOKEN\",\"ttl\":300}"
-            if [ -n "$EXISTING" ]; then
-              echo "TXT record exists — updating it."
-              HTTP_CODE=$(curl -sS -o /tmp/cf.json -w "%{http_code}" -X PUT \
-                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$EXISTING" \
-                -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" -d "$BODY")
-            else
-              HTTP_CODE=$(curl -sS -o /tmp/cf.json -w "%{http_code}" -X POST \
-                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
-                -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" -d "$BODY")
-            fi
-            echo "Cloudflare API: HTTP $HTTP_CODE"
-            jq -c '{success, errors}' /tmp/cf.json || cat /tmp/cf.json
-            if [ "$HTTP_CODE" -ge 300 ]; then
-              echo "::error::Cloudflare API call failed — see response above."
-              exit 1
-            fi
-            echo "Waiting 30 s for propagation (Cloudflare is fast)…"
-            sleep 30
-          elif [ -n "$TOKEN" ] && [ -n "$ZONE_RG" ]; then
-            echo "Creating TXT record _dnsauth.bumeet.es in Azure DNS…"
-            az network dns record-set txt add-record -g "$ZONE_RG" -z bumeet.es \
-              -n _dnsauth -v "$TOKEN" || true
-          elif [ -n "$TOKEN" ] && [ -n "$HOSTINGER_API_TOKEN" ]; then
-            echo "Creating TXT record _dnsauth.bumeet.es via Hostinger DNS API…"
-            HTTP_CODE=$(curl -sS -o /tmp/hostinger-resp.json -w "%{http_code}" \
-              -X PUT "https://developers.hostinger.com/api/dns/v1/zones/bumeet.es" \
-              -H "Authorization: Bearer $HOSTINGER_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"overwrite\": false, \"zone\": [{\"name\": \"_dnsauth\", \"type\": \"TXT\", \"ttl\": 300, \"records\": [{\"content\": \"$TOKEN\"}]}]}")
-            echo "Hostinger API response: HTTP $HTTP_CODE"
-            cat /tmp/hostinger-resp.json; echo
-            if [ "$HTTP_CODE" = "422" ]; then
-              echo "::warning::422 — record likely already exists; continuing."
-            elif [ "$HTTP_CODE" -ge 300 ]; then
-              echo "::error::Hostinger API call failed — see response above."
-              exit 1
-            else
-              echo "Waiting 60 s for DNS propagation…"
-              sleep 60
-            fi
-          elif [ -n "$TOKEN" ]; then
-            echo "::warning::DNS zone is external and no HOSTINGER_API_TOKEN secret is set. Add this TXT record manually: _dnsauth.bumeet.es = $TOKEN"
-          fi
-
-          echo "── DNS diagnostics for _dnsauth.bumeet.es ──"
-          echo "Public resolver:"
-          dig +short TXT _dnsauth.bumeet.es || true
-          NS=$(dig +short NS bumeet.es | head -1)
-          echo "Authoritative NS: ${NS:-<none found>}"
-          if [ -n "$NS" ]; then
-            echo "Authoritative answer:"
-            dig +short TXT _dnsauth.bumeet.es "@$NS" || true
-            echo "All records visible at apex (authoritative):"
-            dig +short TXT bumeet.es "@$NS" || true
-          fi
-
-          echo "Polling hostname status (validation + cert can take a few minutes)…"
-          for i in $(seq 1 30); do
-            STATUS=$(az staticwebapp hostname show --name "$SWA_NAME" -g "$SWA_RG" \
-                       --hostname bumeet.es --query "status" -o tsv 2>/dev/null || echo unknown)
-            echo "[$i] status: $STATUS"
-            [ "$STATUS" = "Ready" ] && break
-            sleep 20
+            echo "🗑  Deleting staging environment '$ENV_NAME'"
+            az staticwebapp environment delete \
+              --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
+              --environment-name "$ENV_NAME" --yes
           done
 
-          echo "── Final custom domain list:"
-          az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" -o table
-
-      - name: Verify TLS on bumeet.es
-        run: |
-          for i in $(seq 1 6); do
-            echo "── attempt $i"
-            if curl -sS --max-time 15 -o /dev/null -D /tmp/headers https://bumeet.es; then
-              head -4 /tmp/headers
-              echo "TLS OK ✅"; exit 0
-            fi
-            sleep 30
-          done
-          echo "::warning::bumeet.es TLS still failing — cert issuance may take up to ~15 min after Ready."
+          echo "── Environments after cleanup ──"
+          az staticwebapp environment list \
+            --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query "[].{name:name, hostname:hostname, status:status}" -o table
