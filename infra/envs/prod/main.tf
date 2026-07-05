@@ -17,9 +17,8 @@ module "bumeet" {
   # NOTE: enable geo-redundant backups + Postgres Zone-Redundant HA on a fresh
   # prod server (both are create-time / planned-migration changes — see modules).
 
-  redis_sku_name = "Standard"
-  redis_family   = "C"
-  redis_capacity = 1
+  # Redis was removed: the API keeps OAuth state and the sync scheduler
+  # in-memory (single instance). Re-add it with the multi-instance refactor.
 
   acr_sku = "Standard"
 

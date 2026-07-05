@@ -64,22 +64,6 @@ module "postgresql" {
   tags = local.common_tags
 }
 
-# ── Redis ─────────────────────────────────────────────────────────────────────
-
-module "redis" {
-  source = "./modules/redis"
-
-  name                = "redis-${local.prefix}"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-
-  sku_name = var.redis_sku_name
-  family   = var.redis_family
-  capacity = var.redis_capacity
-
-  tags = local.common_tags
-}
-
 # ── Releases Storage (public blob for agent installers) ───────────────────────
 # One shared storage account across environments; releases are prod artefacts.
 
@@ -137,7 +121,6 @@ module "app_service" {
   app_settings = {
     # Key Vault references — App Service resolves these at runtime via managed identity
     DATABASE_URL = "@Microsoft.KeyVault(SecretUri=${module.key_vault.vault_uri}secrets/DATABASE-URL/)"
-    REDIS_URL    = "@Microsoft.KeyVault(SecretUri=${module.key_vault.vault_uri}secrets/REDIS-URL/)"
     FRONTEND_URL = module.static_web_app.default_hostname
     NODE_ENV     = var.env == "prod" ? "production" : "development"
     PORT         = "8080"
@@ -229,14 +212,6 @@ resource "azurerm_key_vault_secret" "database_url" {
   depends_on = [module.key_vault, module.postgresql]
 }
 
-resource "azurerm_key_vault_secret" "redis_url" {
-  name         = "REDIS-URL"
-  key_vault_id = module.key_vault.id
-  value        = "rediss://:${module.redis.primary_access_key}@${module.redis.hostname}:6380"
-  tags         = local.common_tags
-
-  depends_on = [module.key_vault, module.redis]
-}
 
 # ── Grant App Service managed identity read access to Key Vault ───────────────
 

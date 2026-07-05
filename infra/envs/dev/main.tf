@@ -11,9 +11,8 @@ module "bumeet" {
   pg_storage_mb     = 32768
   pg_admin_password = var.pg_admin_password
 
-  redis_sku_name = "Basic"
-  redis_family   = "C"
-  redis_capacity = 0
+  # Redis was removed: unused by the API (in-memory OAuth state/scheduler)
+  # and Basic C0 bills 24/7 (~15 €/month) with no way to stop it.
 
   acr_sku = "Basic"
 

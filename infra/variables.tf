@@ -83,26 +83,6 @@ variable "pg_geo_redundant_backup_enabled" {
   default     = false
 }
 
-# ── Redis ─────────────────────────────────────────────────────────────────────
-
-variable "redis_sku_name" {
-  description = "Redis Cache SKU name."
-  type        = string
-  default     = "Basic"
-}
-
-variable "redis_family" {
-  description = "Redis Cache family (C for Basic/Standard, P for Premium)."
-  type        = string
-  default     = "C"
-}
-
-variable "redis_capacity" {
-  description = "Redis Cache capacity (0 = C0, 1 = C1, etc.)."
-  type        = number
-  default     = 0
-}
-
 # ── Key Vault ─────────────────────────────────────────────────────────────────
 
 variable "key_vault_soft_delete_retention_days" {
