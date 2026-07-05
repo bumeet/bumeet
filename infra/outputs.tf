@@ -18,11 +18,6 @@ output "postgresql_fqdn" {
   value       = module.postgresql.fqdn
 }
 
-output "redis_hostname" {
-  description = "Hostname of the Redis Cache instance."
-  value       = module.redis.hostname
-}
-
 output "key_vault_uri" {
   description = "URI of the Key Vault."
   value       = module.key_vault.vault_uri
