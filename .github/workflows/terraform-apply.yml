@@ -43,6 +43,26 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      # TEMPORARY (branch-only): import pre-existing drifted resources that were
+      # created outside of (or lost from) the Terraform state, so the apply can
+      # proceed instead of failing with "already exists".
+      - name: Import drifted resources (idempotent)
+        env:
+          SUB: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          if ! terraform state list | grep -q 'module.bumeet.module.releases_storage.azurerm_storage_account.this'; then
+            terraform import -lock-timeout=5m \
+              -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
+              'module.bumeet.module.releases_storage.azurerm_storage_account.this' \
+              "/subscriptions/${SUB}/resourceGroups/rg-bumeet-dev/providers/Microsoft.Storage/storageAccounts/stbumeetreleases"
+          fi
+          if ! terraform state list | grep -q 'module.bumeet.module.releases_storage.azurerm_storage_container.releases'; then
+            terraform import -lock-timeout=5m \
+              -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
+              'module.bumeet.module.releases_storage.azurerm_storage_container.releases' \
+              "https://stbumeetreleases.blob.core.windows.net/releases" || echo "container not found in Azure — apply will create it"
+          fi
+
       - name: Terraform Apply
         run: |
           terraform apply \
@@ -50,7 +70,13 @@ jobs:
             -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
             -auto-approve
 
-  apply-prod:
+  # TEMPORARY (branch-only): apply-prod removed. The GitHub 'prod' environment
+  # has no required-reviewer protection, so a successful dev apply would have
+  # chained straight into provisioning the ENTIRE prod infrastructure (18
+  # resources, premium SKUs). Configure required reviewers on the prod
+  # environment before restoring this job.
+  apply-prod-disabled:
+    if: ${{ false }}
     name: "Apply — prod"
     runs-on: ubuntu-latest
     environment: prod        # requires manual approval in GitHub Environments settings
