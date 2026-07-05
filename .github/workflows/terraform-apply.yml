@@ -50,28 +50,9 @@ jobs:
             -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_DEV }}" \
             -auto-approve
 
-  apply-prod:
-    name: "Apply — prod"
-    runs-on: ubuntu-latest
-    environment: prod        # requires manual approval in GitHub Environments settings
-    needs: apply-dev         # prod only runs after dev succeeds
-    defaults:
-      run:
-        working-directory: infra/envs/prod
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Apply
-        run: |
-          terraform apply \
-            -lock-timeout=5m \
-            -var="pg_admin_password=${{ secrets.PG_ADMIN_PASSWORD_PROD }}" \
-            -auto-approve
+  # apply-prod removed: the prod environment exists only as code (rg-bumeet-prod
+  # is not provisioned) and the GitHub 'prod' environment has no
+  # required-reviewer protection, so chaining it after apply-dev risked
+  # provisioning the entire premium-SKU prod stack by accident. When prod is
+  # actually launched: configure required reviewers on the 'prod' environment
+  # first, then restore an apply-prod job gated on it.
