@@ -99,10 +99,12 @@ jobs:
             STATUS=""
             sleep 10
           fi
-          if [ -n "$STATUS" ]; then
-            echo "bumeet.es already registered (status: $STATUS) — checking only."
+          if [ "$STATUS" = "Ready" ]; then
+            echo "bumeet.es already Ready — nothing to do."
           else
-            echo "Registering bumeet.es (dns-txt-token validation)…"
+            # Re-issuing hostname set on a stuck 'Validating' registration nudges
+            # Azure to re-run the TXT validation now that the record exists.
+            echo "(Re)registering bumeet.es (dns-txt-token validation)…"
             az staticwebapp hostname set --name "$SWA_NAME" -g "$SWA_RG" \
               --hostname bumeet.es --validation-method dns-txt-token --no-wait
             sleep 15
@@ -182,7 +184,7 @@ jobs:
           fi
 
           echo "Polling hostname status (validation + cert can take a few minutes)…"
-          for i in $(seq 1 20); do
+          for i in $(seq 1 30); do
             STATUS=$(az staticwebapp hostname show --name "$SWA_NAME" -g "$SWA_RG" \
                        --hostname bumeet.es --query "status" -o tsv 2>/dev/null || echo unknown)
             echo "[$i] status: $STATUS"
