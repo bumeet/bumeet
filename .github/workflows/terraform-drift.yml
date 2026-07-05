@@ -29,7 +29,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [dev, prod]
+        # prod removed: it exists only as code (rg-bumeet-prod is not
+        # provisioned), so the nightly drift check failed every day trying to
+        # read it. Re-add prod to the matrix when it is actually launched.
+        env: [dev]
     environment: ${{ matrix.env }}
     defaults:
       run:
