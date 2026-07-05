@@ -63,6 +63,7 @@ jobs:
       - name: Register apex hostname with TXT validation
         env:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          CF_API_TOKEN_SECRET: ${{ secrets.CF_API_TOKEN }}
         run: |
           SWA_NAME='${{ steps.locate.outputs.swa_name }}'
           SWA_RG='${{ steps.locate.outputs.swa_rg }}'
@@ -78,10 +79,15 @@ jobs:
               echo "Using Hostinger token from dispatch input (masked)."
             fi
           fi
-          CF_API_TOKEN=$(jq -r '.inputs.cf_token // empty' "$GITHUB_EVENT_PATH")
+          CF_API_TOKEN="${CF_API_TOKEN_SECRET:-}"
           if [ -n "$CF_API_TOKEN" ]; then
-            echo "::add-mask::$CF_API_TOKEN"
-            echo "Using Cloudflare token from dispatch input (masked)."
+            echo "Using Cloudflare token from CF_API_TOKEN repository secret."
+          else
+            CF_API_TOKEN=$(jq -r '.inputs.cf_token // empty' "$GITHUB_EVENT_PATH")
+            if [ -n "$CF_API_TOKEN" ]; then
+              echo "::add-mask::$CF_API_TOKEN"
+              echo "Using Cloudflare token from dispatch input (masked)."
+            fi
           fi
 
           STATUS=$(az staticwebapp hostname list --name "$SWA_NAME" -g "$SWA_RG" \
