@@ -24,13 +24,6 @@ type Message = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SOURCE_ICONS: Record<string, string> = {
-  Slack: '💬',
-  'Google Calendar': '📅',
-  Microsoft: '📆',
-  Mic: '🎙️',
-};
-
 function parseMessageMeta(content: string) {
   if (!content.startsWith('BUSY') && !content.startsWith('UPCOMING') && content !== 'FREE')
     return { label: content, isBusy: false, isFree: false, isUpcoming: false, source: null, endTime: null, startTime: null };
@@ -124,7 +117,7 @@ function EinkScreen({ label, isBusy, isUpcoming, source, endTime, startTime, isC
           </div>
           {source && (
             <div style={{ fontSize: 11, color: '#888', marginTop: 9, letterSpacing: '0.05em' }}>
-              {SOURCE_ICONS[source] ?? ''} {source}
+              {source}
             </div>
           )}
           {endTime && (
@@ -318,15 +311,17 @@ function CoreInkDevice({ message }: { message: Message | null }) {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TEMPLATES = [
-  { label: 'In a meeting', icon: '📅' },
-  { label: 'On a call', icon: '📞' },
-  { label: 'Do not disturb', icon: '🔕' },
-  { label: 'Back at 5pm', icon: '⏰' },
-  { label: 'Working from home', icon: '🏠' },
-  { label: 'BRB', icon: '🔄' },
+  { label: 'En reunión' },
+  { label: 'No molestar' },
+  { label: 'Ahora vuelvo' },
+  { label: 'Trabajo en remoto' },
+  { label: 'In a meeting' },
+  { label: 'Do not disturb' },
+  { label: 'Be right back' },
+  { label: 'Working remotely' },
 ];
 
-const MAX_LEN = 200;
+const MAX_LEN = 64;
 
 const STATUS_CONFIG: Record<string, { icon: LucideIcon; label: string; className: string }> = {
   pending:   { icon: Loader2,      label: 'Sending…',   className: 'text-yellow-600 bg-yellow-50' },
@@ -529,13 +524,12 @@ export default function MessagesPage() {
                     key={t.label}
                     onClick={() => setContent(t.label)}
                     className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-all',
+                      'px-3 py-1.5 text-sm rounded-lg border transition-all',
                       content === t.label
                         ? 'bg-brand-500 text-white border-brand-500'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300 hover:text-brand-600',
                     )}
                   >
-                    <span>{t.icon}</span>
                     {t.label}
                   </button>
                 ))}
@@ -632,9 +626,8 @@ export default function MessagesPage() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
-                  <div className="text-4xl mb-3">📭</div>
-                  <p className="text-sm">No messages sent yet</p>
-                  <p className="text-xs mt-1">Status updates will appear here automatically</p>
+                  <p className="text-sm">No hay mensajes enviados</p>
+                  <p className="text-xs mt-1">Los cambios de estado aparecerán aquí automáticamente</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-80 overflow-y-auto -mr-2 pr-2">
@@ -678,8 +671,8 @@ export default function MessagesPage() {
                               {label}
                             </span>
                             {source && (
-                              <span className="text-xs text-gray-500 flex items-center gap-1">
-                                {SOURCE_ICONS[source] ?? '🔗'} {source}
+                              <span className="text-xs text-gray-500">
+                                {source}
                               </span>
                             )}
                             {endTime && (
