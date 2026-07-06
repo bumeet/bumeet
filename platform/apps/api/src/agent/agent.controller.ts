@@ -69,9 +69,15 @@ export class AgentController {
       this.integrations.getLiveStatus(user.id),
       this.messages.getLatestPending(user.id),
     ]);
-    // A custom message takes over the display — overrides all presence signals.
+    // A custom message takes over the display. Permanent messages override every
+    // presence signal (stay even during meetings); non-permanent ones yield to a
+    // real busy/upcoming signal so a live meeting still shows BUSY, then reappear
+    // once you're free again.
     if (customMsg) {
-      return { ...liveStatus, payload: customMsg.content, customMessageId: customMsg.id };
+      const presenceActive = liveStatus.busy || liveStatus.upcoming;
+      if (customMsg.permanent || !presenceActive) {
+        return { ...liveStatus, payload: customMsg.content, customMessageId: customMsg.id };
+      }
     }
     return liveStatus;
   }

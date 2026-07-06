@@ -701,17 +701,17 @@ export default function MessagesPage() {
                           )}
                         </div>
 
-                        {/* Right: cancel button for permanent, status + time */}
+                        {/* Right: cancel button for any active custom message, status + time */}
                         <div className="flex-shrink-0 flex items-center gap-2">
-                          {msg.permanent && !isCancelled && (
+                          {!isAuto && !isCancelled && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleCancel(msg.id)}
-                              title="Cancel permanent message"
+                              title="Quitar mensaje del display"
                               className="gap-1 text-gray-400 hover:text-red-500 hover:bg-red-50"
                             >
-                              <X size={12} /> Cancel
+                              <X size={12} /> Quitar
                             </Button>
                           )}
                           <div className="text-right">

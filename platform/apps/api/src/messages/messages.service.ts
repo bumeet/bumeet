@@ -14,6 +14,18 @@ export class MessagesService {
   }
 
   async create(userId: string, content: string, permanent = false) {
+    // Only one custom message is active at a time. Supersede any previous active
+    // custom messages (newest wins) so that cancelling the current one returns the
+    // display to auto presence instead of resurfacing an older message.
+    await this.prisma.messageToDisplay.updateMany({
+      where: {
+        userId,
+        status: { in: ['pending', 'sent', 'delivered'] },
+        NOT: [{ content: { startsWith: 'BUSY' } }, { content: { equals: 'FREE' } }],
+      },
+      data: { status: 'cancelled' },
+    });
+
     const message = await this.prisma.messageToDisplay.create({
       data: { userId, content, status: 'pending', permanent },
     });
@@ -91,11 +103,14 @@ export class MessagesService {
     });
     if (permanent) return permanent;
 
-    // Regular pending messages (agent-visible, excludes auto-status)
+    // Latest active custom message (agent-visible, excludes auto-status). Includes
+    // 'delivered' so the message STAYS on the display after the delivery simulation
+    // completes — it persists until the user sends a new one or cancels it. Without
+    // this, the message vanished ~7 s after sending (once marked delivered).
     return this.prisma.messageToDisplay.findFirst({
       where: {
         userId,
-        status: { in: ['pending', 'sent'] },
+        status: { in: ['pending', 'sent', 'delivered'] },
         NOT: [
           { content: { startsWith: 'BUSY' } },
           { content: { equals: 'FREE' } },
