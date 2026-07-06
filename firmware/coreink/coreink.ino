@@ -166,6 +166,71 @@ static void renderUpcoming(const String& src, const String& detail) {
     M5.Display.display();
 }
 
+// Mensaje personalizado: texto libre centrado con ajuste de línea automático.
+// Fondo blanco (estado "no ocupado") para distinguirlo del negro de BUSY.
+// El texto llega ya limitado a 64 bytes UTF-8 desde el agente.
+static void renderCustom(const String& msg) {
+    M5.Display.fillScreen(TFT_WHITE);
+    M5.Display.setTextColor(TFT_BLACK, TFT_WHITE);
+
+    // Elegir el mayor tamaño de fuente cuyo texto ajustado quepa en el panel 200×200.
+    // Celda de carácter = 6*sz de ancho, 8*sz de alto.
+    for (int sz = 3; sz >= 1; sz--) {
+        const int maxChars = 200 / (6 * sz);   // caracteres por línea
+        String lines[8];
+        int nLines = 0;
+        String cur = "";
+        bool overflow = false;
+
+        int i = 0;
+        while (i < (int)msg.length() && !overflow) {
+            int sp = msg.indexOf(' ', i);
+            String word = (sp < 0) ? msg.substring(i) : msg.substring(i, sp);
+            i = (sp < 0) ? msg.length() : sp + 1;
+            if (word.length() == 0) continue;
+
+            // Palabra más larga que una línea: partir por fuerza.
+            while ((int)word.length() > maxChars && !overflow) {
+                if (cur.length() > 0) {
+                    if (nLines < 8) lines[nLines++] = cur; else { overflow = true; break; }
+                    cur = "";
+                }
+                if (nLines < 8) lines[nLines++] = word.substring(0, maxChars);
+                else { overflow = true; break; }
+                word = word.substring(maxChars);
+            }
+            if (overflow) break;
+
+            String tentative = cur.length() ? cur + " " + word : word;
+            if ((int)tentative.length() > maxChars) {
+                if (nLines < 8) lines[nLines++] = cur; else { overflow = true; break; }
+                cur = word;
+            } else {
+                cur = tentative;
+            }
+        }
+        if (!overflow && cur.length() > 0) {
+            if (nLines < 8) lines[nLines++] = cur; else overflow = true;
+        }
+
+        const int lineH  = 8 * sz + 4;
+        const int totalH = nLines * lineH;
+        // Reintentar con fuente menor si desborda; en sz==1 se dibuja igualmente.
+        if ((overflow || totalH > 196 || nLines == 0) && sz > 1) continue;
+
+        int y = (200 - totalH) / 2;
+        if (y < 2) y = 2;
+        M5.Display.setTextSize(sz);
+        for (int l = 0; l < nLines; l++) {
+            M5.Display.setCursor(centerX(lines[l], sz), y);
+            M5.Display.print(lines[l]);
+            y += lineH;
+        }
+        break;
+    }
+    M5.Display.display();
+}
+
 static void renderMessage(const String& msg, bool forceQuality = false) {
     String hdr, src, detail;
     parsePayload(msg, hdr, src, detail);
@@ -175,7 +240,8 @@ static void renderMessage(const String& msg, bool forceQuality = false) {
         : epd_mode_t::epd_fast);
     if      (hdr == "FREE")     renderFree();
     else if (hdr == "UPCOMING") renderUpcoming(src, detail);
-    else                        renderBusy(src, detail);
+    else if (hdr == "BUSY")     renderBusy(src, detail);
+    else                        renderCustom(msg);   // texto personalizado
     M5.Display.sleep();   // controlador a bajo consumo — la imagen e-ink se mantiene sin corriente
 }
 
